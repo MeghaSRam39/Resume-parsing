@@ -1,0 +1,8 @@
+pymupdf
+streamlit
+pandas
+pafy
+plotly
+pymysql
+streamlit-tags
+Pillow

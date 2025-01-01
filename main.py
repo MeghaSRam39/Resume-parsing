@@ -14,3 +14,5 @@ text = extract_text_from_pdf(pdf_path)
 
 out = generate(prompt + text)
 print(out)
+
+

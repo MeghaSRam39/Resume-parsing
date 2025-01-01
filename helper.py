@@ -1,6 +1,37 @@
+from groq import Groq
 import PyPDF2
 import sys
 from pathlib import Path
+import os
+from dotenv import load_dotenv
+
+def generate(text):
+    load_dotenv(override=True)
+    api = os.getenv('groq_api')
+
+    client = Groq(api_key=api)
+    chat_completion = client.chat.completions.create(
+        messages=[
+            {
+                "role": "system",
+                "content": "you are a helpful assistant."
+            },
+            {
+                "role": "user",
+                "content":f"{text}",
+            }
+        ],
+
+        model="llama3-8b-8192",
+        temperature=0.5,
+        max_tokens=1024,
+        top_p=1,
+        stop=None,
+        stream=False,
+    )
+
+    return chat_completion.choices[0].message.content
+
 
 def extract_text_from_pdf(pdf_path):
     try:
@@ -35,39 +66,3 @@ def extract_text_from_pdf(pdf_path):
 
     except Exception as e:
         raise Exception(f"An error occurred while reading the PDF: {str(e)}")
-
-def save_text_to_file(text, output_path):
-    """
-    Save extracted text to a file.
-    
-    Args:
-        text (str): Text to save
-        output_path (str): Path where to save the text file
-    """
-    with open(output_path, 'w', encoding='utf-8') as file:
-        file.write(text)
-
-def main():
-    # Example usage
-    pdf_path = r"C:\Users\megha\OneDrive\Desktop\resume-parser\resume\Uploaded_Resumes\resume 3.pdf"  # Replace with your PDF path
-    output_path = "output.txt"  # Replace with desired output path
-    
-    try:
-        # Extract text
-        extracted_text = extract_text_from_pdf(pdf_path)
-        
-        # Save to file
-        save_text_to_file(extracted_text, output_path)
-        
-        print(f"Text has been extracted and saved to {output_path}")
-        
-        # Print first 500 characters as preview
-        print("\nPreview of extracted text:")
-        print(extracted_text)
-        
-    except Exception as e:
-        print(f"Error: {str(e)}")
-        sys.exit(1)
-
-if __name__ == "__main__":
-    main()

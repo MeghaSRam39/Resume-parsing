@@ -62,10 +62,35 @@ def user_interface():
         if st.button("Analyze Resume"):
             with st.spinner("Extracting information..."):
                 prompt = '''
-                You will be given the text extracted form a resume. You have to properly extract the relevant information in the following format.
-                - Experience
-                - Skills
-                - Contact details
+                Always start answering by saying hello there
+                    You are an advanced resume screening assistant. Extract and summarize the candidate's professional experience and key skills from the following resume.
+Provide the output in the following format:
+
+Experience Summary: List the most relevant roles, durations, and key achievements.
+Key Skills: Highlight the candidate's technical, interpersonal, and domain-specific skills.
+Ensure the summary is concise, focused on the recruiter's perspective, and easy to scan. Use bullet points for clarity.
+
+Input Resume:
+[Insert the resume text here]
+
+Output:
+Experience Summary:
+
+[Role, Duration, Key Achievement]
+[Role, Duration, Key Achievement]
+Key Skills:
+
+[Skill 1, Skill 2, Skill 3, ...]
+
+Remember:
+
+Be concise and specific
+Focus on quantifiable achievements when available
+Highlight skills that match current industry trends
+Flag any potential red flags or gaps in experience
+
+Give a score according to the experience within the range of 0 to 100. After the score, write a critic in 5 to 10 short points about the resume. 
+After that give 5 suggestions to improve the resume score.
                 '''
                 
                 text = extract_text_from_pdf("temp_resume.pdf")
@@ -91,11 +116,34 @@ def admin_interface():
                         f.write(uploaded_file.getvalue())
                     
                     # Process resume
-                    prompt = '''
-                    You will be given the text extracted form a resume. You have to properly extract the relevant information in the following format.
-                    - Experience
-                    - Skills
-                    - Contact details
+                    prompt = '''Always start answering by saying hello there
+                    You are an advanced resume screening assistant. Extract and summarize the candidate's professional experience and key skills from the following resume.
+Provide the output in the following format:
+
+Experience Summary: List the most relevant roles, durations, and key achievements.
+Key Skills: Highlight the candidate's technical, interpersonal, and domain-specific skills.
+Ensure the summary is concise, focused on the recruiter's perspective, and easy to scan. Use bullet points for clarity.
+
+Input Resume:
+[Insert the resume text here]
+
+Output:
+Experience Summary:
+
+[Role, Duration, Key Achievement]
+[Role, Duration, Key Achievement]
+Key Skills:
+
+[Skill 1, Skill 2, Skill 3, ...]
+
+Remember:
+
+Be concise and specific
+Focus on quantifiable achievements when available
+Highlight skills that match current industry trends
+Flag any potential red flags or gaps in experience
+
+Give a score according to the experience within the range of 0 to 100
                     '''
                     
                     text = extract_text_from_pdf(temp_path)

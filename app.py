@@ -5,7 +5,7 @@ from helper import generate, extract_text_from_pdf
 from pathlib import Path
 
 # Must be the first Streamlit command
-st.set_page_config(layout="wide", page_title="AI Resume Parser", page_icon="📄")
+st.set_page_config(layout="wide", page_title="Resume Parser App", page_icon="📄")
 
 def init_db():
     """Initialize the SQLite database"""
@@ -85,7 +85,7 @@ def user_interface():
     # Header with gradient
     st.markdown("""
         <div style='background: linear-gradient(90deg, #1e3c72 0%, #2a5298 100%); padding: 2rem; border-radius: 10px; margin-bottom: 2rem;'>
-            <h1 style='color: white; margin: 0;'>AI Resume Parser</h1>
+            <h1 style='color: white; margin: 0;'>Resume Parser App</h1>
             <p style='color: #e0e0e0; margin: 10px 0 0 0;'>Upload your resume for instant analysis and insights</p>
         </div>
     """, unsafe_allow_html=True)
@@ -167,13 +167,13 @@ def user_interface():
                             
                         with tabs[1]:
                             st.markdown("#### Key Skills")
-                            skills_section = result.split("Key Skills:")[1].split("Remember:")[0]
+                            skills_section = result.split("Key Skills:")[1].split("Score:")[0]
                             st.write(skills_section)
                             
                         with tabs[2]:
                             st.markdown("#### Suggestions for Improvement")
                             if "score" in result.lower():
-                                suggestions = result.split("Score")[1]
+                                suggestions = '# Score'+result.split("Score")[1]
                                 st.write(suggestions)
                         
                         st.markdown("</div>", unsafe_allow_html=True)

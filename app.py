@@ -1,5 +1,5 @@
 import streamlit as st
-import sqlite3
+import mysql.connector
 import os
 from helper import generate, extract_text_from_pdf
 from pathlib import Path
@@ -10,31 +10,49 @@ import csv
 st.set_page_config(layout="wide", page_title="Resume Parser App", page_icon="📄")
 
 def init_db():
-    """Initialize the SQLite database"""
-    conn = sqlite3.connect('resumes.db')
-    c = conn.cursor()
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS resumes
-        (id INTEGER PRIMARY KEY AUTOINCREMENT,
-         filename TEXT,
-         experience TEXT,
-         skills TEXT,
-         contact_details TEXT,
-         upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP)
-    ''')
-    conn.commit()
-    conn.close()
+    """Initialize the MySQL database."""
+    try:
+        conn = mysql.connector.connect(
+            host="localhost",          # Replace with your MySQL server address
+            user="root",      # Replace with your MySQL username
+            password="meghasram52@",  # Replace with your MySQL password
+            database="stored_resume"   # Your MySQL database name
+        )
+        c = conn.cursor()
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS resumes (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                filename VARCHAR(255) NOT NULL,
+                experience TEXT,
+                skills TEXT,
+                contact_details TEXT,
+                upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        conn.commit()
+        conn.close()
+    except mysql.connector.Error as e:
+        st.error(f"Database initialization error: {e}")
 
+# Save Data to Database
 def save_to_db(filename, analysis_result):
-    """Save the analysis results to database"""
-    conn = sqlite3.connect('resumes.db')
-    c = conn.cursor()
-    c.execute('''
-        INSERT INTO resumes (filename, experience, skills, contact_details)
-        VALUES (?, ?, ?, ?)
-    ''', (filename, analysis_result['experience'], analysis_result['skills'], analysis_result['contact_details']))
-    conn.commit()
-    conn.close()
+    """Save the analysis results to the MySQL database."""
+    try:
+        conn = mysql.connector.connect(
+            host="localhost",
+            user="root",
+            password="meghasram52@",
+            database="stored_resume"
+        )
+        c = conn.cursor()
+        c.execute('''
+            INSERT INTO resumes (filename, experience, skills, contact_details)
+            VALUES (%s, %s, %s, %s)
+        ''', (filename, analysis_result['experience'], analysis_result['skills'], analysis_result['contact_details']))
+        conn.commit()
+        conn.close()
+    except mysql.connector.Error as e:
+        st.error(f"Error saving data to the database: {e}")
 
 def parse_analysis_result(text):
     """Parse the AI output into structured format"""
@@ -204,7 +222,13 @@ def admin_interface():
             min_score = st.slider("Minimum Resume Score", 0, 100, 70)
 
     # Database query with advanced filtering
-    conn = sqlite3.connect('resumes.db')
+    conn = mysql.connector.connect(
+    host="localhost",          # Replace with your MySQL server's hostname
+    user="root",      # Replace with your MySQL username
+    password="meghasram52@",  # Replace with your MySQL password
+    database="stored_resume"   # The database you created in MySQL
+)
+
     query = '''
         SELECT filename, experience, skills, contact_details, upload_date 
         FROM resumes 
@@ -230,7 +254,13 @@ def admin_interface():
     
     
 
-    conn = sqlite3.connect('resumes.db')
+    conn = mysql.connector.connect(
+    host="localhost",          # Replace with your MySQL server's hostname
+    user="root",      # Replace with your MySQL username
+    password="meghasram52@",  # Replace with your MySQL password
+    database="stored_resume"   # The database you created in MySQL
+)
+
     c = conn.cursor()
     c.execute('SELECT filename, experience, skills, contact_details, upload_date FROM resumes')
     rows = c.fetchall()

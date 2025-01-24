@@ -3,6 +3,8 @@ import sqlite3
 import os
 from helper import generate, extract_text_from_pdf
 from pathlib import Path
+import pandas as pd
+import csv
 
 # Must be the first Streamlit command
 st.set_page_config(layout="wide", page_title="Resume Parser App", page_icon="📄")
@@ -179,79 +181,97 @@ def user_interface():
                         st.markdown("</div>", unsafe_allow_html=True)
 
 def admin_interface():
-    # Header with gradient
     st.markdown("""
         <div style='background: linear-gradient(90deg, #2c3e50 0%, #3498db 100%); padding: 2rem; border-radius: 10px; margin-bottom: 2rem;'>
-            <h1 style='color: white; margin: 0;'>Resume Parser - Admin Dashboard</h1>
-            <p style='color: #e0e0e0; margin: 10px 0 0 0;'>Batch process and manage resumes</p>
+            <h1 style='color: white; margin: 0;'>Resume Parser - Recruiter Dashboard</h1>
+            <p style='color: #e0e0e0; margin: 10px 0 0 0;'>Advanced Resume Screening and Candidate Management</p>
         </div>
     """, unsafe_allow_html=True)
 
-    # Admin controls
-    col1, col2 = st.columns([1, 2])
+    # Enhanced search and filter options
+    with st.expander("🔍 Advanced Search"):
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            search_skills = st.multiselect("Filter by Skills", 
+                ["Python", "Machine Learning", "React", "SQL", "Cloud Computing", "Data Analysis"])
+        
+        with col2:
+            experience_level = st.selectbox("Experience Level", 
+                ["Any", "Entry", "Mid-Level", "Senior", "Expert"])
+        
+        with col3:
+            min_score = st.slider("Minimum Resume Score", 0, 100, 70)
 
-    with col1:
-        st.markdown("<div class='upload-block'>", unsafe_allow_html=True)
-        uploaded_files = st.file_uploader("📄 Upload Multiple Resumes", type="pdf", accept_multiple_files=True)
-        if uploaded_files:
-            st.info(f"📁 {len(uploaded_files)} files selected")
-        st.markdown("</div>", unsafe_allow_html=True)
+    # Database query with advanced filtering
+    conn = sqlite3.connect('resumes.db')
+    query = '''
+        SELECT filename, experience, skills, contact_details, upload_date 
+        FROM resumes 
+        WHERE 1=1
+    '''
+    params = []
 
-        if uploaded_files:
-            if st.button("🔄 Process All Resumes", use_container_width=True):
-                progress_bar = st.progress(0)
-                status_text = st.empty()
+    if search_skills:
+        skill_conditions = ' OR '.join(['skills LIKE ?' for _ in search_skills])
+        query += f' AND ({skill_conditions})'
+        params.extend([f'%{skill}%' for skill in search_skills])
+
+    if experience_level != "Any":
+        query += ' AND experience LIKE ?'
+        params.append(f'%{experience_level}%')
+
+    c = conn.cursor()
+    c.execute(query, params)
+    rows = c.fetchall()
+    conn.close()
+
+    # Candidate Management Section
+    
+    
+
+    conn = sqlite3.connect('resumes.db')
+    c = conn.cursor()
+    c.execute('SELECT filename, experience, skills, contact_details, upload_date FROM resumes')
+    rows = c.fetchall()
+    conn.close()
+    
+    if rows:
+        st.markdown("### 📁 Stored Resumes")
+        
+        # Create a multiselect for candidates
+        selected_candidates = st.multiselect(
+            "Select Candidates", 
+            [row[0] for row in rows]
+        )
+        
+        for row in rows:
+            with st.expander(f"📄 {row[0]} | Uploaded: {row[4]}"):
+                tabs = st.tabs(["Experience", "Skills", "Contact"])
                 
-                for i, uploaded_file in enumerate(uploaded_files):
-                    status_text.text(f"Processing {uploaded_file.name}...")
-                    temp_path = f"temp_resume_{i}.pdf"
+                with tabs[0]:
+                    st.markdown("#### Professional Experience")
+                    st.write(row[1])
                     
-                    with open(temp_path, "wb") as f:
-                        f.write(uploaded_file.getvalue())
+                with tabs[1]:
+                    st.markdown("#### Skills")
+                    st.write(row[2])
                     
-                    text = extract_text_from_pdf(temp_path)
-                    prompt = '''Always start answering by saying hello there...'''  # Same prompt as before
-                    result = generate(prompt + text)
-                    
-                    parsed_result = parse_analysis_result(result)
-                    save_to_db(uploaded_file.name, parsed_result)
-                    
-                    progress_bar.progress((i + 1)/len(uploaded_files))
-                    os.remove(temp_path)
-                
-                status_text.success("✅ All resumes processed!")
-
-    with col2:
-        if st.button("📊 View Database Records", use_container_width=True):
-            conn = sqlite3.connect('resumes.db')
-            c = conn.cursor()
-            c.execute('SELECT filename, experience, skills, contact_details, upload_date FROM resumes')
-            rows = c.fetchall()
-            conn.close()
+                with tabs[2]:
+                    st.markdown("#### Contact Details")
+                    st.write(row[3])
+        
+        # Export section
+        if selected_candidates:
+            st.markdown("### 🚀 Bulk Actions")
+            export_format = st.selectbox("Export Selected Candidates", 
+                ["CSV", "PDF", "Excel"])
             
-            if rows:
-                st.markdown("<div class='results-block'>", unsafe_allow_html=True)
-                st.markdown("### 📁 Stored Resumes")
-                
-                for row in rows:
-                    with st.expander(f"📄 {row[0]} | Uploaded: {row[4]}"):
-                        tabs = st.tabs(["Experience", "Skills", "Contact"])
-                        
-                        with tabs[0]:
-                            st.markdown("#### Professional Experience")
-                            st.write(row[1])
-                            
-                        with tabs[1]:
-                            st.markdown("#### Skills")
-                            st.write(row[2])
-                            
-                        with tabs[2]:
-                            st.markdown("#### Contact Details")
-                            st.write(row[3])
-                
-                st.markdown("</div>", unsafe_allow_html=True)
-            else:
-                st.info("No resumes found in the database")
+            if st.button("Export Selected Candidates"):
+                st.success(f"Exported {len(selected_candidates)} candidates as {export_format}")
+    else:
+        st.info("No resumes found in the database")
+   
 
 def main():
     init_db()

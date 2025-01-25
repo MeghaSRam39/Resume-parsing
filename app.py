@@ -36,40 +36,79 @@ def init_db():
 
 # Save Data to Database
 def save_to_db(filename, analysis_result):
-    """Save the analysis results to the MySQL database."""
-    try:
-        conn = mysql.connector.connect(
-            host="localhost",
-            user="root",
-            password="meghasram52@",
-            database="stored_resume"
-        )
-        c = conn.cursor()
-        c.execute('''
-            INSERT INTO resumes (filename, experience, skills, contact_details)
-            VALUES (%s, %s, %s, %s)
-        ''', (filename, analysis_result['experience'], analysis_result['skills'], analysis_result['contact_details']))
-        conn.commit()
-        conn.close()
-    except mysql.connector.Error as e:
-        st.error(f"Error saving data to the database: {e}")
+    """Save the analysis results to the database."""
+    conn = mysql.connector.connect(
+        host="localhost",  # Update with your DB credentials
+        user="root",
+        password="your_password",
+        database="stored_resume"
+    )
+    c = conn.cursor()
+    c.execute('''
+        INSERT INTO resumes (filename, experience, skills, contact_details, score, suggestions)
+        VALUES (%s, %s, %s, %s, %s, %s)
+    ''', (
+        filename,
+        analysis_result['experience'],
+        analysis_result['skills'],
+        analysis_result['contact_details'],
+        analysis_result['score'],
+        analysis_result['suggestions']
+    ))
+    conn.commit()
+    conn.close()
 
-def parse_analysis_result(text):
-    """Parse the AI output into structured format"""
-    sections = {'experience': '', 'skills': '', 'contact_details': ''}
-    current_section = None
+
+def analyze_resume_with_llama(resume_text):
+    """Send resume text to Llama 3 model API and get structured output."""
+    prompt = f"""
+    You are a resume screening assistant. Extract and summarize the following resume's content.
+
+    Provide the output in this structured format:
+    Experience Summary: ...
+    Key Skills: ...
+    Resume Score: ...
+    Suggestions: ...
+    Input Resume:
+    {resume_text}
+    """
+    # Call Llama 3 API (replace with actual API call)
+    response = generate(prompt)
+    print(response)
+    return parse_analysis_result(response)
     
-    for line in text.split('\n'):
-        line = line.strip()
-        if line.lower().startswith('- experience'):
-            current_section = 'experience'
-        elif line.lower().startswith('- skills'):
-            current_section = 'skills'
-        elif line.lower().startswith('- contact'):
-            current_section = 'contact_details'
-        elif line and current_section:
-            sections[current_section] += line + '\n'
+
+def parse_analysis_result(response):
+    """Parse the Llama 3 API response into structured fields."""
+    sections = {'experience': '', 'skills': '', 'contact_details': '', 'score': '', 'suggestions': ''}
+    
+    if "Experience Summary:" in response:
+        sections['experience'] = response.split("Experience Summary:")[1].split("Key Skills:")[0].strip()
+    if "Key Skills:" in response:
+        sections['skills'] = response.split("Key Skills:")[1].split("Resume Score:")[0].strip()
+    if "Resume Score:" in response:
+        score_line = response.split("Resume Score:")[1].split("Suggestions:")[0].strip()
+        sections['score'] = int(''.join(filter(str.isdigit, score_line)))
+    if "Suggestions:" in response:
+        sections['suggestions'] = response.split("Suggestions:")[1].strip()
+    
     return sections
+
+
+def process_resume(uploaded_file):
+    """Handle uploaded resume, analyze it, and store results."""
+    if uploaded_file:
+        with open("temp_resume.pdf", "wb") as f:
+            f.write(uploaded_file.getvalue())
+
+        resume_text = extract_text_from_pdf("temp_resume.pdf")
+        analysis_result = analyze_resume_with_llama(resume_text)
+        
+        # Save results to DB
+        save_to_db(uploaded_file.name, analysis_result)
+        
+        return analysis_result
+
 
 def user_interface():
     # Custom CSS

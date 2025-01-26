@@ -1,241 +1,180 @@
 import streamlit as st
 import mysql.connector
 import os
-from helper import generate, extract_text_from_pdf
-from pathlib import Path
+import json
+from helper import  extract_text_from_pdf
 import pandas as pd
-import csv
+from datetime import datetime
 
-# Must be the first Streamlit command
+
+def generate(resume_text):
+    """Sample generator function returning fixed response with score"""
+    return json.dumps({
+        "experience": "Does some ML.",
+        "skills": ["Machine Learning", "JavaScript", "React", "Node.js", "SQL", "AWS"],
+        "contact_info": {
+            "name": "John Doe",
+            "email": "john.doe@example.com",
+            "phone": "+1 (555) 123-4567",
+            "linkedin": "linkedin.com/in/johndoe"
+        },
+        "score": 25
+    })
+
+
+# Set page config
 st.set_page_config(layout="wide", page_title="Resume Parser App", page_icon="📄")
 
+# Database functions
 def init_db():
-    """Initialize the MySQL database."""
     try:
         conn = mysql.connector.connect(
-            host="localhost",          # Replace with your MySQL server address
-            user="root",      # Replace with your MySQL username
-            password="meghasram52@",  # Replace with your MySQL password
-            database="stored_resume"   # Your MySQL database name
+            host="localhost",
+            user="root",
+            password="meghasram52@"
         )
         c = conn.cursor()
-        c.execute('''
+        c.execute("CREATE DATABASE IF NOT EXISTS stored_resume")
+        c.execute("USE stored_resume")
+        c.execute("""
             CREATE TABLE IF NOT EXISTS resumes (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 filename VARCHAR(255) NOT NULL,
                 experience TEXT,
                 skills TEXT,
                 contact_details TEXT,
-                upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                score INT,
+                upload_date DATETIME
             )
-        ''')
+        """)
+        # Check and add score column if missing
+        c.execute("""
+            SELECT COUNT(*)
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = 'stored_resume' 
+            AND TABLE_NAME = 'resumes'
+            AND COLUMN_NAME = 'score'
+        """)
+        if c.fetchone()[0] == 0:
+            c.execute("ALTER TABLE resumes ADD COLUMN score INT AFTER contact_details")
         conn.commit()
         conn.close()
-    except mysql.connector.Error as e:
+    except Exception as e:
         st.error(f"Database initialization error: {e}")
 
-# Save Data to Database
 def save_to_db(filename, analysis_result):
-    """Save the analysis results to the database."""
-    conn = mysql.connector.connect(
-        host="localhost",  # Update with your DB credentials
-        user="root",
-        password="your_password",
-        database="stored_resume"
-    )
-    c = conn.cursor()
-    c.execute('''
-        INSERT INTO resumes (filename, experience, skills, contact_details, score, suggestions)
-        VALUES (%s, %s, %s, %s, %s, %s)
-    ''', (
-        filename,
-        analysis_result['experience'],
-        analysis_result['skills'],
-        analysis_result['contact_details'],
-        analysis_result['score'],
-        analysis_result['suggestions']
-    ))
-    conn.commit()
-    conn.close()
+    try:
+        conn = mysql.connector.connect(
+            host="localhost",
+            user="root",
+            password="meghasram52@",
+            database="stored_resume"
+        )
+        c = conn.cursor()
+        c.execute("""
+            INSERT INTO resumes (filename, experience, skills, contact_details, score, upload_date)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (
+            filename,
+            analysis_result.get('experience', ''),
+            analysis_result.get('skills', ''),
+            analysis_result.get('contact_details', ''),
+            analysis_result.get('score', 0),
+            datetime.now()
+        ))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        st.error(f"Database save error: {e}")
+        return False
 
-
+# Processing functions
 def analyze_resume_with_llama(resume_text):
-    """Send resume text to Llama 3 model API and get structured output."""
-    prompt = f"""
-    You are a resume screening assistant. Extract and summarize the following resume's content.
+    try:
+        response = generate(resume_text)
+        response_dict = json.loads(response)
+        return parse_analysis_result(response_dict)
+    except json.JSONDecodeError as e:
+        st.error(f"Failed to parse response: {e}")
+        return None
+    except Exception as e:
+        st.error(f"Analysis error: {e}")
+        return None
 
-    Provide the output in this structured format:
-    Experience Summary: ...
-    Key Skills: ...
-    Resume Score: ...
-    Suggestions: ...
-    Input Resume:
-    {resume_text}
-    """
-    # Call Llama 3 API (replace with actual API call)
-    response = generate(prompt)
-    print(response)
-    return parse_analysis_result(response)
-    
-
-def parse_analysis_result(response):
-    """Parse the Llama 3 API response into structured fields."""
-    sections = {'experience': '', 'skills': '', 'contact_details': '', 'score': '', 'suggestions': ''}
-    
-    if "Experience Summary:" in response:
-        sections['experience'] = response.split("Experience Summary:")[1].split("Key Skills:")[0].strip()
-    if "Key Skills:" in response:
-        sections['skills'] = response.split("Key Skills:")[1].split("Resume Score:")[0].strip()
-    if "Resume Score:" in response:
-        score_line = response.split("Resume Score:")[1].split("Suggestions:")[0].strip()
-        sections['score'] = int(''.join(filter(str.isdigit, score_line)))
-    if "Suggestions:" in response:
-        sections['suggestions'] = response.split("Suggestions:")[1].strip()
-    
-    return sections
-
+def parse_analysis_result(response_dict):
+    try:
+        sections = {
+            'experience': response_dict.get('experience', 'Not found'),
+            'skills': ', '.join(response_dict.get('skills', [])),
+            'contact_details': response_dict.get('contact_info', {}),
+            'score': int(response_dict.get('score', 0))
+        }
+        
+        if isinstance(sections['contact_details'], dict):
+            sections['contact_details'] = '\n'.join(
+                [f"{k}: {v}" for k, v in sections['contact_details'].items()]
+            )
+        return sections
+    except Exception as e:
+        st.error(f"Parsing error: {e}")
+        return None
 
 def process_resume(uploaded_file):
-    """Handle uploaded resume, analyze it, and store results."""
-    if uploaded_file:
-        with open("temp_resume.pdf", "wb") as f:
-            f.write(uploaded_file.getvalue())
-
-        resume_text = extract_text_from_pdf("temp_resume.pdf")
+    try:
+        with open(uploaded_file.name, "wb") as f:
+            f.write(uploaded_file.getbuffer())
+        
+        resume_text = extract_text_from_pdf(uploaded_file.name)
         analysis_result = analyze_resume_with_llama(resume_text)
         
-        # Save results to DB
-        save_to_db(uploaded_file.name, analysis_result)
-        
+        os.remove(uploaded_file.name)
         return analysis_result
+    except Exception as e:
+        st.error(f"Processing error: {e}")
+        return None
 
-
+# Interfaces
 def user_interface():
-    # Custom CSS
     st.markdown("""
-        <style>
-        .stApp {
-            background-color: #f8f9fa;
-        }
-        .css-1d391kg {
-            padding: 2rem 1rem;
-        }
-        .stButton>button {
-            width: 100%;
-            border-radius: 4px;
-            height: 45px;
-        }
-        .upload-block {
-            border: 2px dashed #ccc;
-            border-radius: 8px;
-            padding: 20px;
-            text-align: center;
-            background: white;
-        }
-        .results-block {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        </style>
-    """, unsafe_allow_html=True)
-
-    # Header with gradient
-    st.markdown("""
-        <div style='background: linear-gradient(90deg, #1e3c72 0%, #2a5298 100%); padding: 2rem; border-radius: 10px; margin-bottom: 2rem;'>
-            <h1 style='color: white; margin: 0;'>Resume Parser App</h1>
-            <p style='color: #e0e0e0; margin: 10px 0 0 0;'>Upload your resume for instant analysis and insights</p>
+        <div style='background: linear-gradient(90deg, #2c3e50 0%, #3498db 100%); padding: 2rem; border-radius: 10px; margin-bottom: 2rem;'>
+            <h1 style='color: white; margin: 0;'>Resume Parser - Candidate Portal</h1>
+            <p style='color: #e0e0e0; margin: 10px 0 0 0;'>Upload your resume for automated analysis</p>
         </div>
     """, unsafe_allow_html=True)
 
-    # Main content in columns
-    col1, col2 = st.columns([1, 1.5])
-
+    col1, col2 = st.columns([2, 3])
+    
     with col1:
-        st.markdown("<div class='upload-block'>", unsafe_allow_html=True)
-        uploaded_file = st.file_uploader("📄 Choose a PDF file", type="pdf")
+        st.markdown("### 📤 Upload Your Resume")
+        uploaded_file = st.file_uploader("Choose a PDF file", type=["pdf"], key="user_upload")
+        
         if uploaded_file:
-            st.success(f"File uploaded: {uploaded_file.name}")
-        st.markdown("</div>", unsafe_allow_html=True)
+            with st.spinner("Analyzing your resume..."):
+                analysis_result = process_resume(uploaded_file)
+                if analysis_result:
+                    if save_to_db(uploaded_file.name, analysis_result):
+                        st.success("Resume processed and stored successfully!")
+                    else:
+                        st.error("Failed to store resume in database")
 
-        if uploaded_file:
-            st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("🔍 Analyze Resume", use_container_width=True):
-                with st.spinner("🔄 Processing your resume..."):
-                    with open("temp_resume.pdf", "wb") as f:
-                        f.write(uploaded_file.getvalue())
-                    
-                    text = extract_text_from_pdf("temp_resume.pdf")
-                    prompt = '''
-                    Always start answering by saying hello there
-                    You are an advanced resume screening assistant. Extract and summarize the candidate's professional experience and key skills from the following resume.
-                    Provide the output in the following format:
-
-                    Experience Summary: List the most relevant roles, durations, and key achievements.
-                    Key Skills: Highlight the candidate's technical, interpersonal, and domain-specific skills.
-                    Ensure the summary is concise, focused on the recruiter's perspective, and easy to scan. Use bullet points for clarity.
-
-                    Input Resume:
-                    [Insert the resume text here]
-
-                    Output:
-                    Experience Summary:
-
-                    [Role, Duration, Key Achievement]
-                    [Role, Duration, Key Achievement]
-                    Key Skills:
-
-                    [Skill 1, Skill 2, Skill 3, ...]
-
-                    Remember:
-
-                    Be concise and specific
-                    Focus on quantifiable achievements when available
-                    Highlight skills that match current industry trends
-                    Flag any potential red flags or gaps in experience
-
-                    Give a score according to the experience within the range of 0 to 100. After the score, write a critic in 5 to 10 short points about the resume. 
-                    After that give 5 suggestions to improve the resume score.
-
-                    Make sure that the sections are named as "Experience Summary:", "Key Skills:" and "improvements"
-                    '''
-                    
-                    result = generate(prompt + text)
-
-                    print(result)
-                    
-                    with col2:
-                        st.markdown("<div class='results-block'>", unsafe_allow_html=True)
-                        st.markdown("### 📊 Analysis Results")
-                        
-                        # Extract and display score if present
-                        if "score" in result.lower():
-                            score_line = [line for line in result.split('\n') if 'score' in line.lower()][0]
-                            score = int(''.join(filter(str.isdigit, score_line)))
-                            st.progress(score/100)
-                            st.markdown(f"### Resume Score: {score}/100")
-                        
-                        # Display the rest of the analysis
-                        tabs = st.tabs(["📈 Experience", "🛠️ Skills", "💡 Improvements"])
-                        
-                        with tabs[0]:
-                            st.markdown("#### Professional Experience")
-                            experience_section = result.split("Experience Summary:")[1].split("Key Skills:")[0]
-                            st.write(experience_section)
-                            
-                        with tabs[1]:
-                            st.markdown("#### Key Skills")
-                            skills_section = result.split("Key Skills:")[1].split("Score:")[0]
-                            st.write(skills_section)
-                            
-                        with tabs[2]:
-                            st.markdown("#### Suggestions for Improvement")
-                            if "score" in result.lower():
-                                suggestions = '# Score'+result.split("Score")[1]
-                                st.write(suggestions)
-                        
-                        st.markdown("</div>", unsafe_allow_html=True)
+    with col2:
+        if uploaded_file and analysis_result:
+            st.markdown("### 📄 Analysis Results")
+            with st.expander("View Details"):
+                st.markdown("#### Professional Experience")
+                st.write(analysis_result.get('experience', 'No experience found'))
+                
+                st.markdown("#### Key Skills")
+                st.write(analysis_result.get('skills', 'No skills found'))
+                
+                st.markdown("#### Contact Details")
+                st.write(analysis_result.get('contact_details', 'No contact information found'))
+                
+                st.markdown("#### Resume Score")
+                score = analysis_result.get('score', 0)
+                score_color = "#2ecc71" if score >= 75 else "#f1c40f" if score >= 50 else "#e74c3c"
+                st.markdown(f"<h3 style='color: {score_color};'>{score}/100</h3>", unsafe_allow_html=True)
 
 def admin_interface():
     st.markdown("""
@@ -245,9 +184,31 @@ def admin_interface():
         </div>
     """, unsafe_allow_html=True)
 
-    # Enhanced search and filter options
+    # Admin Upload
+    with st.expander("📤 Bulk Upload Resumes (Admin Only)", expanded=True):
+        uploaded_files = st.file_uploader(
+            "Upload multiple resumes (PDF only)", 
+            type=["pdf"], 
+            accept_multiple_files=True,
+            key="admin_upload"
+        )
+        
+        if uploaded_files:
+            for uploaded_file in uploaded_files:
+                with st.spinner(f"Processing {uploaded_file.name}..."):
+                    try:
+                        analysis_result = process_resume(uploaded_file)
+                        if analysis_result:
+                            if save_to_db(uploaded_file.name, analysis_result):
+                                st.success(f"Processed and stored: {uploaded_file.name}")
+                            else:
+                                st.error(f"Failed to store {uploaded_file.name}")
+                    except Exception as e:
+                        st.error(f"Error processing {uploaded_file.name}: {str(e)}")
+
+    # Search and Filter
     with st.expander("🔍 Advanced Search"):
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3, col4 = st.columns(4)
         
         with col1:
             search_skills = st.multiselect("Filter by Skills", 
@@ -258,94 +219,121 @@ def admin_interface():
                 ["Any", "Entry", "Mid-Level", "Senior", "Expert"])
         
         with col3:
-            min_score = st.slider("Minimum Resume Score", 0, 100, 70)
-
-    # Database query with advanced filtering
-    conn = mysql.connector.connect(
-    host="localhost",          # Replace with your MySQL server's hostname
-    user="root",      # Replace with your MySQL username
-    password="meghasram52@",  # Replace with your MySQL password
-    database="stored_resume"   # The database you created in MySQL
-)
-
-    query = '''
-        SELECT filename, experience, skills, contact_details, upload_date 
-        FROM resumes 
-        WHERE 1=1
-    '''
-    params = []
-
-    if search_skills:
-        skill_conditions = ' OR '.join(['skills LIKE ?' for _ in search_skills])
-        query += f' AND ({skill_conditions})'
-        params.extend([f'%{skill}%' for skill in search_skills])
-
-    if experience_level != "Any":
-        query += ' AND experience LIKE ?'
-        params.append(f'%{experience_level}%')
-
-    c = conn.cursor()
-    c.execute(query, params)
-    rows = c.fetchall()
-    conn.close()
-
-    # Candidate Management Section
-    
-    
-
-    conn = mysql.connector.connect(
-    host="localhost",          # Replace with your MySQL server's hostname
-    user="root",      # Replace with your MySQL username
-    password="meghasram52@",  # Replace with your MySQL password
-    database="stored_resume"   # The database you created in MySQL
-)
-
-    c = conn.cursor()
-    c.execute('SELECT filename, experience, skills, contact_details, upload_date FROM resumes')
-    rows = c.fetchall()
-    conn.close()
-    
-    if rows:
-        st.markdown("### 📁 Stored Resumes")
+            min_score = st.slider("Minimum Score", 0, 100, 70)
         
-        # Create a multiselect for candidates
-        selected_candidates = st.multiselect(
-            "Select Candidates", 
-            [row[0] for row in rows]
+        with col4:
+            upload_date_filter = st.date_input("Uploaded After")
+
+    # Database Query
+    try:
+        conn = mysql.connector.connect(
+            host="localhost",
+            user="root",
+            password="meghasram52@",
+            database="stored_resume"
         )
-        
-        for row in rows:
-            with st.expander(f"📄 {row[0]} | Uploaded: {row[4]}"):
-                tabs = st.tabs(["Experience", "Skills", "Contact"])
-                
-                with tabs[0]:
-                    st.markdown("#### Professional Experience")
-                    st.write(row[1])
-                    
-                with tabs[1]:
-                    st.markdown("#### Skills")
-                    st.write(row[2])
-                    
-                with tabs[2]:
-                    st.markdown("#### Contact Details")
-                    st.write(row[3])
-        
-        # Export section
-        if selected_candidates:
-            st.markdown("### 🚀 Bulk Actions")
-            export_format = st.selectbox("Export Selected Candidates", 
-                ["CSV", "PDF", "Excel"])
-            
-            if st.button("Export Selected Candidates"):
-                st.success(f"Exported {len(selected_candidates)} candidates as {export_format}")
-    else:
-        st.info("No resumes found in the database")
-   
+        c = conn.cursor()
 
+        query = '''
+            SELECT filename, experience, skills, contact_details, score, upload_date 
+            FROM resumes 
+            WHERE score >= %s
+        '''
+        params = [min_score]
+
+        if search_skills:
+            skill_conditions = ' OR '.join(['skills LIKE %s' for _ in search_skills])
+            query += f' AND ({skill_conditions})'
+            params.extend([f'%{skill}%' for skill in search_skills])
+
+        if experience_level != "Any":
+            query += ' AND experience LIKE %s'
+            params.append(f'%{experience_level}%')
+
+        if upload_date_filter:
+            query += ' AND upload_date >= %s'
+            params.append(upload_date_filter.strftime('%Y-%m-%d'))
+
+        c.execute(query, params)
+        rows = c.fetchall()
+
+        # Display Results
+        if rows:
+            st.markdown("### 📁 Candidate Database")
+            
+            # Selection and Export
+            selected_candidates = st.multiselect(
+                "Select Candidates", 
+                [row[0] for row in rows]
+            )
+            
+            # Export
+            if selected_candidates:
+                st.markdown("### 🚀 Bulk Actions")
+                export_format = st.selectbox("Export Format", ["CSV", "Excel"])
+                
+                if st.button("Export Selected Candidates"):
+                    df = pd.DataFrame(rows, columns=["Filename", "Experience", "Skills", "Contact", "Score", "Upload Date"])
+                    df = df[df["Filename"].isin(selected_candidates)]
+                    
+                    if export_format == "CSV":
+                        csv = df.to_csv(index=False).encode('utf-8')
+                        st.download_button(
+                            label="Download CSV",
+                            data=csv,
+                            file_name="candidates.csv",
+                            mime="text/csv"
+                        )
+                    elif export_format == "Excel":
+                        excel_file = df.to_excel(index=False)
+                        st.download_button(
+                            label="Download Excel",
+                            data=excel_file,
+                            file_name="candidates.xlsx",
+                            mime="application/vnd.ms-excel"
+                        )
+
+            # Candidate List
+            for row in rows:
+                score = row[4]
+                with st.expander(f"📄 {row[0]} | Score: {score} | Uploaded: {row[5]}"):
+                    score_color = "#2ecc71" if score >= 75 else "#f1c40f" if score >= 50 else "#e74c3c"
+                    st.markdown(f"<span style='color: {score_color}'>Resume Score: {score}/100</span>", unsafe_allow_html=True)
+                    
+                    tabs = st.tabs(["Experience", "Skills", "Contact", "Details"])
+                    
+                    with tabs[0]:
+                        st.markdown("#### Professional Experience")
+                        st.write(row[1])
+                        
+                    with tabs[1]:
+                        st.markdown("#### Skills")
+                        st.write(row[2])
+                        
+                    with tabs[2]:
+                        st.markdown("#### Contact Details")
+                        st.write(row[3])
+                    
+                    with tabs[3]:
+                        st.markdown("#### Candidate Metrics")
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.metric("Resume Score", f"{score}/100")
+                        with col2:
+                            exp_level = "Senior" if "senior" in row[1].lower() else "Mid-Level" if "mid" in row[1].lower() else "Entry"
+                            st.metric("Experience Level", exp_level)
+
+        else:
+            st.info("No resumes found in the database")
+
+        conn.close()
+    except Exception as e:
+        st.error(f"Database connection error: {e}")
+
+# Main app
 def main():
     init_db()
     
-    # Sidebar navigation with custom styling
     st.sidebar.markdown("""
         <div style='padding: 1rem; background: white; border-radius: 8px;'>
             <h2 style='margin: 0 0 1rem 0;'>Navigation</h2>

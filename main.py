@@ -156,6 +156,8 @@ Delhi Institute Of Digital Marketing: Professional Certificate in Social Media &
  ADDITIONAL INFORMATION
  Languages: English-Advanced Speaker and Write
 
+STRICTLY FOLLOW THE OUTPUT TEMPLATE. DO NOT OUTPUT ANYTHING ELSE OTHER THAT THE JSON AS GIVEN BELOW.
+
 Output:
 sample output, generate output as in the below format for every resume, for example
 {
@@ -167,7 +169,7 @@ sample output, generate output as in the below format for every resume, for exam
         "phone": "Phone number of the person.",
         "linkedin": "LinkedIn profile URL of the person."
     },
-    "score": "A numerical score representing the person's overall rating."
+    "score": "A numerical score representing the person's overall rating. The scoring should be done for 100."
 }
 '''
 text = extract_text_from_pdf(pdf_path)

@@ -166,6 +166,31 @@ def process_resume(uploaded_file, identity):
 
 # Interfaces
 
+
+
+
+def check_resume_exists(filename):
+    try:
+        conn = mysql.connector.connect(
+            host="localhost",
+            user="root",
+            password="meghasram52@",
+            database="stored_resume"
+        )
+        c = conn.cursor()
+        c.execute("SELECT COUNT(*) FROM resumes WHERE filename = %s", (filename,))
+        count = c.fetchone()[0]
+        conn.close()
+        return count > 0
+    except Exception as e:
+        st.error(f"Database check error: {e}")
+        # Return False in case of error to allow upload attempt
+        return False
+
+
+
+
+
 def user_interface():
     # Custom CSS
     st.markdown("""
@@ -344,18 +369,19 @@ def admin_interface():
             for uploaded_file in uploaded_files:
                 with st.spinner(f"Processing {uploaded_file.name}..."):
                     try:
+                        # Check if resume already exists in database
+                        if check_resume_exists(uploaded_file.name):
+                            st.warning(f"Resume {uploaded_file.name} already exists in database. Skipping.")
+                            continue
+                            
                         analysis_result = process_resume(uploaded_file, identity='admin')
-                        print(analysis_result)
-                        import sys
-                        print("This will be printed in the terminal.")
-                        sys.stdout.flush()
+                        
                         if analysis_result:
-                            # Saving part
                             if save_to_db(uploaded_file.name, analysis_result):
                                 st.success(f"Processed and stored: {uploaded_file.name}")
                             else:
                                 st.error(f"Failed to store {uploaded_file.name}")
-                    except Exception as e:# Saving part
+                    except Exception as e:
                         st.error(f"Error processing {uploaded_file.name}: {str(e)}")
 
     # Search and Filter

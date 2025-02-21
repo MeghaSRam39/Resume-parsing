@@ -6,3 +6,7 @@ plotly
 pymysql
 streamlit-tags
 Pillow
+mysql-connector-python
+groq
+PyPDF2
+python-dotenv

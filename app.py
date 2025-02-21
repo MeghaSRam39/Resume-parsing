@@ -2,25 +2,9 @@ import streamlit as st
 import mysql.connector
 import os
 import json
-from helper import  extract_text_from_pdf
+from helper import  extract_text_from_pdf, generate
 import pandas as pd
 from datetime import datetime
-
-
-def generate(resume_text):
-    """Sample generator function returning fixed response with score"""
-    return json.dumps({
-        "experience": "Does some ML.",
-        "skills": ["Machine Learning", "JavaScript", "React", "Node.js", "SQL", "AWS"],
-        "contact_info": {
-            "name": "John Doe",
-            "email": "john.doe@example.com",
-            "phone": "+1 (555) 123-4567",
-            "linkedin": "linkedin.com/in/johndoe"
-        },
-        "score": 25
-    })
-
 
 # Set page config
 st.set_page_config(layout="wide", page_title="Resume Parser App", page_icon="📄")
@@ -90,19 +74,44 @@ def save_to_db(filename, analysis_result):
         return False
 
 # Processing functions
-def analyze_resume_with_llama(resume_text):
+def analyze_resume_with_llama(resume_text, identity):
     try:
-        response = generate(resume_text)
-        response_dict = json.loads(response)
-        return parse_analysis_result(response_dict)
+        if identity == 'user':
+            response = generate(resume_text)
+            pass
+        
+        if identity == 'admin': 
+            response = generate(resume_text)
+            response_dict = json.loads(response)
+            return parse_analysis_result_admin(response_dict)
     except json.JSONDecodeError as e:
-        st.error(f"Failed to parse response: {e}")
+        st.error(f"Failed to parse response: {e}")  
         return None
     except Exception as e:
         st.error(f"Analysis error: {e}")
         return None
 
-def parse_analysis_result(response_dict):
+
+def parse_analysis_result_user(text):
+    """Parse the AI output into structured format"""
+    sections = {'experience': '', 'skills': '', 'contact_details': ''}
+    current_section = None
+    
+    for line in text.split('\n'):
+        line = line.strip()
+        if line.lower().startswith('- experience'):
+            current_section = 'experience'
+        elif line.lower().startswith('- skills'):
+            current_section = 'skills'
+        elif line.lower().startswith('- contact'):
+            current_section = 'contact_details'
+        elif line and current_section:
+            sections[current_section] += line + '\n'
+    return sections
+ 
+
+
+def parse_analysis_result_admin(response_dict):
     try:
         sections = {
             'experience': response_dict.get('experience', 'Not found'),
@@ -120,13 +129,35 @@ def parse_analysis_result(response_dict):
         st.error(f"Parsing error: {e}")
         return None
 
-def process_resume(uploaded_file):
+def process_resume(uploaded_file, identity):
     try:
         with open(uploaded_file.name, "wb") as f:
             f.write(uploaded_file.getbuffer())
         
         resume_text = extract_text_from_pdf(uploaded_file.name)
-        analysis_result = analyze_resume_with_llama(resume_text)
+        if identity == 'user':
+            prompt = f"""Analyze the following resume/CV and provide results in JSON format with these fields:
+    - experience: A string summarizing professional experience
+    - skills: A string listing key skills
+    - improvements: A deep analysis(tell the positive and negative parts of the resume) into the resume and ways to improve the quality of resume. There should be 3 positives and negatives. The suggstions should have atleast 5 ways to improve the resume. It should be in this format:
+        - positive
+        - negative
+        - suggestions
+    - contact_details: A string with contact information
+    - score: A number from 0-100 rating the resume's overall quality"""
+
+            analysis_result = generate(prompt,resume_text)
+
+        elif identity == 'admin':
+            prompt = f"""Analyze the following resume/CV and provide results in JSON format with these fields:
+    - experience: A string summarizing professional experience
+    - skills: A string listing key skills
+    - contact_details: A string with contact information
+    - score: A number from 0-100 rating the resume's overall quality"""
+            analysis_result = generate(prompt, resume_text)
+
+        else:
+            raise 'Error'
         
         os.remove(uploaded_file.name)
         return analysis_result
@@ -135,46 +166,163 @@ def process_resume(uploaded_file):
         return None
 
 # Interfaces
+
 def user_interface():
+    # Custom CSS
+    st.markdown("""
+        <style>
+        .stApp {
+            background-color: #f8f9fa;
+        }
+        .css-1d391kg {
+            padding: 2rem 1rem;
+        }
+        .stButton>button {
+            width: 100%;
+            border-radius: 4px;
+            height: 45px;
+        }
+        .upload-block {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            background: white;
+        }
+        .results-block {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .improvement-section {
+            margin: 1rem 0;
+            padding: 1rem;
+            border-radius: 8px;
+        }
+        .positive-card {
+            background: #e8f5e9;
+            border-left: 4px solid #2ecc71;
+        }
+        .negative-card {
+            background: #ffebee;
+            border-left: 4px solid #e74c3c;
+        }
+        .suggestion-card {
+            background: #e3f2fd;
+            border-left: 4px solid #3498db;
+        }
+        .improvement-item {
+            padding: 0.5rem 1rem;
+            margin: 0.5rem 0;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+    # Header with gradient
     st.markdown("""
         <div style='background: linear-gradient(90deg, #2c3e50 0%, #3498db 100%); padding: 2rem; border-radius: 10px; margin-bottom: 2rem;'>
-            <h1 style='color: white; margin: 0;'>Resume Parser - Candidate Portal</h1>
-            <p style='color: #e0e0e0; margin: 10px 0 0 0;'>Upload your resume for automated analysis</p>
+            <h1 style='color: white; margin: 0;'>Resume Parser App</h1>
+            <p style='color: #e0e0e0; margin: 10px 0 0 0;'>Upload your resume for instant analysis and insights</p>
         </div>
     """, unsafe_allow_html=True)
 
-    col1, col2 = st.columns([2, 3])
-    
-    with col1:
-        st.markdown("### 📤 Upload Your Resume")
-        uploaded_file = st.file_uploader("Choose a PDF file", type=["pdf"], key="user_upload")
-        
-        if uploaded_file:
-            with st.spinner("Analyzing your resume..."):
-                analysis_result = process_resume(uploaded_file)
-                if analysis_result:
-                    if save_to_db(uploaded_file.name, analysis_result):
-                        st.success("Resume processed and stored successfully!")
-                    else:
-                        st.error("Failed to store resume in database")
+    # Main content in columns
+    col1, col2 = st.columns([1, 1.5])
 
-    with col2:
-        if uploaded_file and analysis_result:
-            st.markdown("### 📄 Analysis Results")
-            with st.expander("View Details"):
-                st.markdown("#### Professional Experience")
-                st.write(analysis_result.get('experience', 'No experience found'))
-                
-                st.markdown("#### Key Skills")
-                st.write(analysis_result.get('skills', 'No skills found'))
-                
-                st.markdown("#### Contact Details")
-                st.write(analysis_result.get('contact_details', 'No contact information found'))
-                
-                st.markdown("#### Resume Score")
-                score = analysis_result.get('score', 0)
-                score_color = "#2ecc71" if score >= 75 else "#f1c40f" if score >= 50 else "#e74c3c"
-                st.markdown(f"<h3 style='color: {score_color};'>{score}/100</h3>", unsafe_allow_html=True)
+    with col1:
+        st.markdown("<div class='upload-block'>", unsafe_allow_html=True)
+        uploaded_file = st.file_uploader("📄 Choose a PDF file", type=["pdf"])
+        if uploaded_file:
+            st.success(f"File uploaded: {uploaded_file.name}")
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        if uploaded_file:
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("🔍 Analyze Resume", use_container_width=True):
+                with st.spinner("🔄 Processing your resume..."):
+                    analysis_result = process_resume(uploaded_file, identity='user')
+
+                    with col2:
+                        st.markdown("<div class='results-block'>", unsafe_allow_html=True)
+                        st.markdown("### 📊 Analysis Results")
+                        
+                        score = analysis_result.get('score', 0)
+                        st.progress(score/100)
+                        st.markdown(f"### Resume Score: {score}/100")
+                        
+                        # Display the rest of the analysis
+                        tabs = st.tabs(["📈 Experience", "🛠️ Skills", "💡 Improvements"])
+                        
+                        with tabs[0]:
+                            st.markdown("#### Professional Experience")
+                            st.write(analysis_result.get('experience', 'No experience found'))
+                            
+                        with tabs[1]:
+                            st.markdown("#### Key Skills")
+                            st.write(analysis_result.get('skills', 'No skills found'))
+                            
+                        with tabs[2]:
+                            st.markdown("#### Comprehensive Feedback")
+                            improvements = analysis_result.get('improvements', {})
+                            
+                            if isinstance(improvements, dict):
+                                # Positive Aspects
+                                st.markdown("<div class='improvement-section positive-card'>", unsafe_allow_html=True)
+                                st.markdown("##### ✅ Strengths")
+                                positives = improvements.get('positive', [])
+                                if positives:
+                                    if isinstance(positives, list):
+                                        for strength in positives:
+                                            st.markdown(f"- <div class='improvement-item'>{strength}</div>", 
+                                                        unsafe_allow_html=True)
+                                    else:
+                                        st.write(positives)
+                                else:
+                                    st.info("No positive aspects identified")
+                                st.markdown("</div>", unsafe_allow_html=True)
+                                
+                                # Negative Aspects
+                                st.markdown("<div class='improvement-section negative-card'>", unsafe_allow_html=True)
+                                st.markdown("##### ❌ Areas for Improvement")
+                                negatives = improvements.get('negative', [])
+                                if negatives:
+                                    if isinstance(negatives, list):
+                                        for weakness in negatives:
+                                            st.markdown(f"- <div class='improvement-item'>{weakness}</div>", 
+                                                        unsafe_allow_html=True)
+                                    else:
+                                        st.write(negatives)
+                                else:
+                                    st.info("No negative aspects identified")
+                                st.markdown("</div>", unsafe_allow_html=True)
+                                
+                                # Suggestions
+                                st.markdown("<div class='improvement-section suggestion-card'>", unsafe_allow_html=True)
+                                st.markdown("##### 📈 Actionable Recommendations")
+                                suggestions = improvements.get('suggestions', [])
+                                if suggestions:
+                                    if isinstance(suggestions, list):
+                                        for suggestion in suggestions:
+                                            st.markdown(f"- <div class='improvement-item'>{suggestion}</div>", 
+                                                        unsafe_allow_html=True)
+                                    else:
+                                        st.write(suggestions)
+                                else:
+                                    st.info("No specific suggestions available")
+                                st.markdown("</div>", unsafe_allow_html=True)
+                                
+                            else:
+                                st.markdown("##### General Feedback")
+                                st.write(improvements)
+
+                            # Final tip
+                            st.markdown("---")
+                            st.markdown("💡 *Implement these suggestions to enhance your resume's impact*")
+                        
+                        st.markdown("</div>", unsafe_allow_html=True)
+
+
 
 def admin_interface():
     st.markdown("""
@@ -197,7 +345,7 @@ def admin_interface():
             for uploaded_file in uploaded_files:
                 with st.spinner(f"Processing {uploaded_file.name}..."):
                     try:
-                        analysis_result = process_resume(uploaded_file)
+                        analysis_result = process_resume(uploaded_file, identity='admin')
                         if analysis_result:
                             if save_to_db(uploaded_file.name, analysis_result):
                                 st.success(f"Processed and stored: {uploaded_file.name}")

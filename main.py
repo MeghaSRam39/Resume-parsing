@@ -162,7 +162,7 @@ Output:
 sample output, generate output as in the below format for every resume, for example
 {
     "experience": "A brief description of the person's experience.",
-    "skills": ["A list of skills the person possesses."],
+    "skills": ["Bulleted points of skills."],
     "contact_info": {
         "name": "Full name of the person.",
         "email": "Email address of the person.",

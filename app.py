@@ -78,7 +78,6 @@ def analyze_resume_with_llama(resume_text, identity):
     try:
         if identity == 'user':
             response = generate(resume_text)
-            pass
         
         if identity == 'admin': 
             response = generate(resume_text)
@@ -252,7 +251,7 @@ def user_interface():
                         st.markdown(f"### Resume Score: {score}/100")
                         
                         # Display the rest of the analysis
-                        tabs = st.tabs(["📈 Experience", "🛠️ Skills", "💡 Improvements"])
+                        tabs = st.tabs(["📈 Experience", "🛠 Skills", "💡 Improvements"])
                         
                         with tabs[0]:
                             st.markdown("#### Professional Experience")
@@ -318,7 +317,7 @@ def user_interface():
 
                             # Final tip
                             st.markdown("---")
-                            st.markdown("💡 *Implement these suggestions to enhance your resume's impact*")
+                            st.markdown("💡 Implement these suggestions to enhance your resume's impact")
                         
                         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -346,12 +345,17 @@ def admin_interface():
                 with st.spinner(f"Processing {uploaded_file.name}..."):
                     try:
                         analysis_result = process_resume(uploaded_file, identity='admin')
+                        print(analysis_result)
+                        import sys
+                        print("This will be printed in the terminal.")
+                        sys.stdout.flush()
                         if analysis_result:
+                            # Saving part
                             if save_to_db(uploaded_file.name, analysis_result):
                                 st.success(f"Processed and stored: {uploaded_file.name}")
                             else:
                                 st.error(f"Failed to store {uploaded_file.name}")
-                    except Exception as e:
+                    except Exception as e:# Saving part
                         st.error(f"Error processing {uploaded_file.name}: {str(e)}")
 
     # Search and Filter

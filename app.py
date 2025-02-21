@@ -149,6 +149,7 @@ def process_resume(uploaded_file, identity):
 
         elif identity == 'admin':
             prompt = f"""Analyze the following resume/CV and provide results in JSON format with these fields:
+    - name: The name of the candidate
     - experience: A string summarizing professional experience
     - skills: A string listing key skills
     - contact_details: A string with contact information

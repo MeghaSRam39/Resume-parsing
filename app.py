@@ -156,7 +156,7 @@ def process_resume(uploaded_file, identity):
     - skills: A string listing key skills
     - contact_details: A string with contact information
     - score: A number from 0-100 rating the resume's overall quality
-    - experince level: It should be ['Entry', 'Mid-Level', 'Senior', 'Expert']
+    - experince level: It should be ['Entry', 'Mid-Level', 'Senior', 'Expert'], based on years of experience (or if mentioned in resume) [3+ years for mid, 5+ for senior and 10+ expert]
     - education: Should contain the degrees that the candidate hold, separated by comma(Eg: BTech, MTech)"""
             analysis_result = generate(prompt, resume_text)
 
@@ -419,7 +419,7 @@ def admin_interface():
         c = conn.cursor()
 
         query = '''
-            SELECT candidate_name, experience, skills, contact_details, score, upload_date 
+            SELECT candidate_name, experience, skills, contact_details, score, upload_date ,education,experience_level
             FROM resumes 
             WHERE score >= %s
         '''
@@ -431,7 +431,7 @@ def admin_interface():
             params.extend([f'%{skill}%' for skill in search_skills])
 
         if experience_level != "Any":
-            query += ' AND experience LIKE %s'
+            query += f' AND experience_level LIKE %s'
             params.append(f'%{experience_level}%')
 
         if upload_date_filter:
@@ -476,7 +476,7 @@ def admin_interface():
                             file_name="candidates.xlsx",
                             mime="application/vnd.ms-excel"
                         )
-
+            print(rows)
             # Candidate List
             for row in rows:
                 score = row[4]
@@ -504,7 +504,7 @@ def admin_interface():
                         with col1:
                             st.metric("Resume Score", f"{score}/100")
                         with col2:
-                            exp_level = "Senior" if "senior" in row[1].lower() else "Mid-Level" if "mid" in row[1].lower() else "Entry"
+                            exp_level = row[7]
                             st.metric("Experience Level", exp_level)
 
         else:

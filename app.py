@@ -18,35 +18,35 @@ def init_db():
             password="meghasram52@"
         )
         c = conn.cursor()
-        c.execute("CREATE DATABASE IF NOT EXISTS stored_resume")
-        c.execute("USE stored_resume")
-        c.execute("""
-            CREATE TABLE IF NOT EXISTS resumes (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                filename VARCHAR(255) NOT NULL,
-                experience TEXT,
-                skills TEXT,
-                contact_details TEXT,
-                score INT,
-                upload_date DATETIME
-            )
-        """)
-        # Check and add score column if missing
-        c.execute("""
-            SELECT COUNT(*)
-            FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_SCHEMA = 'stored_resume' 
-            AND TABLE_NAME = 'resumes'
-            AND COLUMN_NAME = 'score'
-        """)
-        if c.fetchone()[0] == 0:
-            c.execute("ALTER TABLE resumes ADD COLUMN score INT AFTER contact_details")
+        # c.execute("CREATE DATABASE IF NOT EXISTS stored_resume")
+        # c.execute("USE stored_resume")
+        # c.execute("""
+        #     CREATE TABLE IF NOT EXISTS resumes (
+        #         id INT AUTO_INCREMENT PRIMARY KEY,
+        #         filename VARCHAR(255) NOT NULL,
+        #         experience TEXT,
+        #         skills TEXT,
+        #         contact_details TEXT,
+        #         score INT,
+        #         upload_date DATETIME
+        #     )
+        # """)
+        # # Check and add score column if missing
+        # c.execute("""
+        #     SELECT COUNT(*)
+        #     FROM INFORMATION_SCHEMA.COLUMNS
+        #     WHERE TABLE_SCHEMA = 'stored_resume' 
+        #     AND TABLE_NAME = 'resumes'
+        #     AND COLUMN_NAME = 'score'
+        # """)
+        # if c.fetchone()[0] == 0:
+        #     c.execute("ALTER TABLE resumes ADD COLUMN score INT AFTER contact_details")
         conn.commit()
         conn.close()
     except Exception as e:
         st.error(f"Database initialization error: {e}")
 
-def save_to_db(filename, analysis_result):
+def save_to_db(name, analysis_result):
     try:
         conn = mysql.connector.connect(
             host="localhost",
@@ -56,12 +56,14 @@ def save_to_db(filename, analysis_result):
         )
         c = conn.cursor()
         c.execute("""
-            INSERT INTO resumes (filename, experience, skills, contact_details, score, upload_date)
-            VALUES (%s, %s, %s, %s, %s, %s)
+            INSERT INTO resumes (candidate_name, experience, experience_level, skills, education, contact_details, score, upload_date)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         """, (
-            filename,
+            name,
             analysis_result.get('experience', ''),
+            analysis_result.get('experience_level', ''),
             analysis_result.get('skills', ''),
+            analysis_result.get('education', ''),
             analysis_result.get('contact_details', ''),
             analysis_result.get('score', 0),
             datetime.now()
@@ -153,7 +155,9 @@ def process_resume(uploaded_file, identity):
     - experience: A string summarizing professional experience
     - skills: A string listing key skills
     - contact_details: A string with contact information
-    - score: A number from 0-100 rating the resume's overall quality"""
+    - score: A number from 0-100 rating the resume's overall quality
+    - experince level: It should be ['Entry', 'Mid-Level', 'Senior', 'Expert']
+    - education: Should contain the degrees that the candidate hold, separated by comma(Eg: BTech, MTech)"""
             analysis_result = generate(prompt, resume_text)
 
         else:
@@ -179,7 +183,7 @@ def check_resume_exists(filename):
             database="stored_resume"
         )
         c = conn.cursor()
-        c.execute("SELECT COUNT(*) FROM resumes WHERE filename = %s", (filename,))
+        c.execute("SELECT COUNT(*) FROM resumes WHERE candidate_name = %s", (filename,))
         count = c.fetchone()[0]
         conn.close()
         return count > 0
@@ -415,7 +419,7 @@ def admin_interface():
         c = conn.cursor()
 
         query = '''
-            SELECT filename, experience, skills, contact_details, score, upload_date 
+            SELECT candidate_name, experience, skills, contact_details, score, upload_date 
             FROM resumes 
             WHERE score >= %s
         '''

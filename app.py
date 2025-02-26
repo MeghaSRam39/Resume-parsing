@@ -2,7 +2,7 @@ import streamlit as st
 import mysql.connector
 import os
 import json
-from helper import  extract_text_from_pdf, generate
+from helper import extract_text_from_pdf, generate
 import pandas as pd
 from datetime import datetime
 
@@ -18,29 +18,6 @@ def init_db():
             password="meghasram52@"
         )
         c = conn.cursor()
-        # c.execute("CREATE DATABASE IF NOT EXISTS stored_resume")
-        # c.execute("USE stored_resume")
-        # c.execute("""
-        #     CREATE TABLE IF NOT EXISTS resumes (
-        #         id INT AUTO_INCREMENT PRIMARY KEY,
-        #         filename VARCHAR(255) NOT NULL,
-        #         experience TEXT,
-        #         skills TEXT,
-        #         contact_details TEXT,
-        #         score INT,
-        #         upload_date DATETIME
-        #     )
-        # """)
-        # # Check and add score column if missing
-        # c.execute("""
-        #     SELECT COUNT(*)
-        #     FROM INFORMATION_SCHEMA.COLUMNS
-        #     WHERE TABLE_SCHEMA = 'stored_resume' 
-        #     AND TABLE_NAME = 'resumes'
-        #     AND COLUMN_NAME = 'score'
-        # """)
-        # if c.fetchone()[0] == 0:
-        #     c.execute("ALTER TABLE resumes ADD COLUMN score INT AFTER contact_details")
         conn.commit()
         conn.close()
     except Exception as e:
@@ -55,17 +32,27 @@ def save_to_db(name, analysis_result):
             database="stored_resume"
         )
         c = conn.cursor()
+        
+        # Convert the score to an integer if it's a string
+        score = analysis_result.get('score', 0)
+        if isinstance(score, str):
+            try:
+                score = int(score)
+            except ValueError:
+                score = 0
+        
         c.execute("""
-            INSERT INTO resumes (candidate_name, experience, experience_level, skills, education, contact_details, score, upload_date)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO resumes (file_name, candidate_name, experience, experience_level, skills, education, contact_details, score, upload_date)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (
             name,
+            analysis_result.get('candidate_name', ''),
             analysis_result.get('experience', ''),
             analysis_result.get('experience_level', ''),
             analysis_result.get('skills', ''),
             analysis_result.get('education', ''),
             analysis_result.get('contact_details', ''),
-            analysis_result.get('score', 0),
+            score,
             datetime.now()
         ))
         conn.commit()
@@ -74,6 +61,27 @@ def save_to_db(name, analysis_result):
     except Exception as e:
         st.error(f"Database save error: {e}")
         return False
+
+# Text extraction
+def extract_text_from_docx(filepath):
+    try:
+        import docx
+        doc = docx.Document(filepath)
+        full_text = []
+        for para in doc.paragraphs:
+            full_text.append(para.text)
+        return '\n'.join(full_text)
+    except Exception as e:
+        st.error(f"Error extracting text from DOCX: {e}")
+        return ""
+
+def extract_text(file_path):
+    if file_path.lower().endswith('.pdf'):
+        return extract_text_from_pdf(file_path)
+    elif file_path.lower().endswith('.docx'):
+        return extract_text_from_docx(file_path)
+    else:
+        raise ValueError("Unsupported file format")
 
 # Processing functions
 def analyze_resume_with_llama(resume_text, identity):
@@ -110,15 +118,21 @@ def parse_analysis_result_user(text):
             sections[current_section] += line + '\n'
     return sections
  
-
-
 def parse_analysis_result_admin(response_dict):
     try:
+        # Ensure score is an integer
+        score = response_dict.get('score', 0)
+        if isinstance(score, str):
+            try:
+                score = int(score)
+            except ValueError:
+                score = 0
+                
         sections = {
             'experience': response_dict.get('experience', 'Not found'),
             'skills': ', '.join(response_dict.get('skills', [])),
             'contact_details': response_dict.get('contact_info', {}),
-            'score': int(response_dict.get('score', 0))
+            'score': score
         }
         
         if isinstance(sections['contact_details'], dict):
@@ -135,7 +149,7 @@ def process_resume(uploaded_file, identity):
         with open(uploaded_file.name, "wb") as f:
             f.write(uploaded_file.getbuffer())
         
-        resume_text = extract_text_from_pdf(uploaded_file.name)
+        resume_text = extract_text(uploaded_file.name)
         if identity == 'user':
             prompt = f"""Analyze the following resume/CV and provide results in JSON format with these fields:
     - experience: A string summarizing professional experience
@@ -151,7 +165,7 @@ def process_resume(uploaded_file, identity):
 
         elif identity == 'admin':
             prompt = f"""Analyze the following resume/CV and provide results in JSON format with these fields:
-    - name: The name of the candidate
+    - candidate_name: The name of the candidate
     - experience: A string summarizing professional experience
     - skills: A string listing key skills
     - contact_details: A string with contact information
@@ -159,20 +173,15 @@ def process_resume(uploaded_file, identity):
     - experince level: It should be ['Entry', 'Mid-Level', 'Senior', 'Expert'], based on years of experience (or if mentioned in resume) [3+ years for mid, 5+ for senior and 10+ expert]
     - education: Should contain the degrees that the candidate hold, separated by comma(Eg: BTech, MTech)"""
             analysis_result = generate(prompt, resume_text)
-
+            
         else:
-            raise 'Error'
+            raise Exception('Invalid identity')
         
         os.remove(uploaded_file.name)
         return analysis_result
     except Exception as e:
         st.error(f"Processing error: {e}")
         return None
-
-# Interfaces
-
-
-
 
 def check_resume_exists(filename):
     try:
@@ -183,7 +192,7 @@ def check_resume_exists(filename):
             database="stored_resume"
         )
         c = conn.cursor()
-        c.execute("SELECT COUNT(*) FROM resumes WHERE candidate_name = %s", (filename,))
+        c.execute("SELECT COUNT(*) FROM resumes WHERE file_name = %s", (filename,))
         count = c.fetchone()[0]
         conn.close()
         return count > 0
@@ -191,10 +200,6 @@ def check_resume_exists(filename):
         st.error(f"Database check error: {e}")
         # Return False in case of error to allow upload attempt
         return False
-
-
-
-
 
 def user_interface():
     # Custom CSS
@@ -261,7 +266,7 @@ def user_interface():
 
     with col1:
         st.markdown("<div class='upload-block'>", unsafe_allow_html=True)
-        uploaded_file = st.file_uploader("📄 Choose a PDF file", type=["pdf"])
+        uploaded_file = st.file_uploader("📄 Choose a file", type=["pdf", "docx"])
         if uploaded_file:
             st.success(f"File uploaded: {uploaded_file.name}")
         st.markdown("</div>", unsafe_allow_html=True)
@@ -277,6 +282,12 @@ def user_interface():
                         st.markdown("### 📊 Analysis Results")
                         
                         score = analysis_result.get('score', 0)
+                        if isinstance(score, str):
+                            try:
+                                score = int(score)
+                            except ValueError:
+                                score = 0
+                                
                         st.progress(score/100)
                         st.markdown(f"### Resume Score: {score}/100")
                         
@@ -351,8 +362,6 @@ def user_interface():
                         
                         st.markdown("</div>", unsafe_allow_html=True)
 
-
-
 def admin_interface():
     st.markdown("""
         <div style='background: linear-gradient(90deg, #2c3e50 0%, #3498db 100%); padding: 2rem; border-radius: 10px; margin-bottom: 2rem;'>
@@ -364,8 +373,8 @@ def admin_interface():
     # Admin Upload
     with st.expander("📤 Bulk Upload Resumes (Admin Only)", expanded=True):
         uploaded_files = st.file_uploader(
-            "Upload multiple resumes (PDF only)", 
-            type=["pdf"], 
+            "Upload multiple resumes (PDF/DOCX)", 
+            type=["pdf", "docx"], 
             accept_multiple_files=True,
             key="admin_upload"
         )
@@ -419,7 +428,7 @@ def admin_interface():
         c = conn.cursor()
 
         query = '''
-            SELECT candidate_name, experience, skills, contact_details, score, upload_date ,education,experience_level
+            SELECT candidate_name, experience, skills, contact_details, score, upload_date, education, experience_level
             FROM resumes 
             WHERE score >= %s
         '''
@@ -457,8 +466,8 @@ def admin_interface():
                 export_format = st.selectbox("Export Format", ["CSV", "Excel"])
                 
                 if st.button("Export Selected Candidates"):
-                    df = pd.DataFrame(rows, columns=["Filename", "Experience", "Skills", "Contact", "Score", "Upload Date"])
-                    df = df[df["Filename"].isin(selected_candidates)]
+                    df = pd.DataFrame(rows, columns=["Candidate Name", "Experience", "Skills", "Contact", "Score", "Upload Date", "Education", "Experience Level"])
+                    df = df[df["Candidate Name"].isin(selected_candidates)]
                     
                     if export_format == "CSV":
                         csv = df.to_csv(index=False).encode('utf-8')
@@ -476,10 +485,17 @@ def admin_interface():
                             file_name="candidates.xlsx",
                             mime="application/vnd.ms-excel"
                         )
-            print(rows)
+            
             # Candidate List
             for row in rows:
                 score = row[4]
+                # Ensure score is an integer for comparison
+                if isinstance(score, str):
+                    try:
+                        score = int(score)
+                    except ValueError:
+                        score = 0
+                        
                 with st.expander(f"📄 {row[0]} | Score: {score} | Uploaded: {row[5]}"):
                     score_color = "#2ecc71" if score >= 75 else "#f1c40f" if score >= 50 else "#e74c3c"
                     st.markdown(f"<span style='color: {score_color}'>Resume Score: {score}/100</span>", unsafe_allow_html=True)

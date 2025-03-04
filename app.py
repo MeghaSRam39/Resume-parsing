@@ -466,7 +466,7 @@ def admin_interface():
                 export_format = st.selectbox("Export Format", ["CSV", "Excel"])
                 
                 if st.button("Export Selected Candidates"):
-                    df = pd.DataFrame(rows, columns=["Candidate Name", "Experience", "Skills", "Contact", "Score", "Upload Date", "Education", "Experience Level"])
+                    df = pd.DataFrame(rows, columns=["Candidate Name","Experience", "Skills", "Contact", "Score", "Upload Date", "Education", "Experience Level"])
                     df = df[df["Candidate Name"].isin(selected_candidates)]
                     
                     if export_format == "CSV":

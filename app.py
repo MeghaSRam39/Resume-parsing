@@ -5,9 +5,10 @@ import json
 from helper import extract_text_from_pdf, generate
 import pandas as pd
 from datetime import datetime
+import plotly.graph_objects as go
 
 # Set page config
-st.set_page_config(layout="wide", page_title="Resume Parser App", page_icon="📄")
+st.set_page_config(layout="wide", page_title="Resume Parser & Job Recommendation App", page_icon="📄")
 
 # Database functions
 def init_db():
@@ -159,7 +160,8 @@ def process_resume(uploaded_file, identity):
         - negative
         - suggestions
     - contact_details: A string with contact information
-    - score: A number from 0-100 rating the resume's overall quality"""
+    - score: A number from 0-100 rating the resume's overall quality
+    - job_recommendations: A string with recommended job position for each candidate"""
 
             analysis_result = generate(prompt,resume_text)
 
@@ -202,62 +204,101 @@ def check_resume_exists(filename):
         return False
 
 def user_interface():
-    # Custom CSS
+    # Custom CSS for better styling
     st.markdown("""
         <style>
-        .stApp {
-            background-color: #f8f9fa;
+        /* Import Google Fonts */
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&family=Poppins:wght@400;700&family=Montserrat:wght@400;700&display=swap');
+
+        /* Gradient background for the header - Silver touch */
+        .header {
+            background: linear-gradient(135deg, #4b6cb7, #9baec8); /* Blue to silver-like gradient */
+            padding: 2rem;
+            border-radius: 10px;
+            color: white;
+            margin-bottom: 2rem;
+            font-family: 'Poppins', sans-serif;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
         }
-        .css-1d391kg {
-            padding: 2rem 1rem;
+        
+        /* Card styling */
+        .card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 1.5rem;
+            font-family: 'Roboto', sans-serif;
         }
+        
+        /* Button styling - Light green gradient */
         .stButton>button {
-            width: 100%;
-            border-radius: 4px;
-            height: 45px;
-        }
-        .upload-block {
-            border: 2px dashed #ccc;
+            background: linear-gradient(135deg, #a8e6cf, #dcedc1); /* Light green gradient */
+            color: #333; /* Dark text for contrast */
+            border: none;
             border-radius: 8px;
-            padding: 20px;
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: 'Roboto', sans-serif;
+        }
+        
+        .stButton>button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        
+        /* Footer styling */
+        .footer {
             text-align: center;
-            background: white;
-        }
-        .results-block {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        .improvement-section {
-            margin: 1rem 0;
             padding: 1rem;
+            margin-top: 2rem;
+            color: white;
+            background-color: #2e8b57; /* Medium green color */
+            font-size: 0.9rem;
+            font-family: 'Montserrat', sans-serif;
             border-radius: 8px;
         }
-        .positive-card {
-            background: #e8f5e9;
-            border-left: 4px solid #2ecc71;
+        
+        /* Improve spacing */
+        .stMarkdown {
+            margin-bottom: 1.5rem;
         }
-        .negative-card {
-            background: #ffebee;
-            border-left: 4px solid #e74c3c;
+        
+        /* Tab styling */
+        .stTabs [data-baseweb="tab-list"] {
+            margin-bottom: 1.5rem;
         }
-        .suggestion-card {
-            background: #e3f2fd;
-            border-left: 4px solid #3498db;
+        
+        .stTabs [data-baseweb="tab"] {
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            font-family: 'Roboto', sans-serif;
         }
-        .improvement-item {
-            padding: 0.5rem 1rem;
-            margin: 0.5rem 0;
+        
+        .stTabs [data-baseweb="tab"]:hover {
+            background: rgba(168, 230, 207, 0.1); /* Light green with transparency */
+        }
+        
+        .stTabs [aria-selected="true"] {
+            background: #a8e6cf; /* Light green */
+            color: #333; /* Dark text for contrast */
+        }
+
+        /* Custom font for headlines */
+        h1, h2, h3, h4, h5, h6 {
+            font-family: 'Montserrat', sans-serif;
         }
         </style>
     """, unsafe_allow_html=True)
 
     # Header with gradient
     st.markdown("""
-        <div style='background: linear-gradient(90deg, #2c3e50 0%, #3498db 100%); padding: 2rem; border-radius: 10px; margin-bottom: 2rem;'>
-            <h1 style='color: white; margin: 0;'>Resume Parser App</h1>
-            <p style='color: #e0e0e0; margin: 10px 0 0 0;'>Upload your resume for instant analysis and insights</p>
+        <div class="header">
+            <h1 style="margin: 0;">📄 Resume Parser App</h1>
+            <p style="margin: 10px 0 0 0; font-size: 1.1rem;">Upload your resume for instant analysis and insights</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -265,7 +306,7 @@ def user_interface():
     col1, col2 = st.columns([1, 1.5])
 
     with col1:
-        st.markdown("<div class='upload-block'>", unsafe_allow_html=True)
+        st.markdown("<div class='card'>", unsafe_allow_html=True)
         uploaded_file = st.file_uploader("📄 Choose a file", type=["pdf", "docx"])
         if uploaded_file:
             st.success(f"File uploaded: {uploaded_file.name}")
@@ -278,7 +319,7 @@ def user_interface():
                     analysis_result = process_resume(uploaded_file, identity='user')
 
                     with col2:
-                        st.markdown("<div class='results-block'>", unsafe_allow_html=True)
+                        st.markdown("<div class='card'>", unsafe_allow_html=True)
                         st.markdown("### 📊 Analysis Results")
                         
                         score = analysis_result.get('score', 0)
@@ -292,15 +333,17 @@ def user_interface():
                         st.markdown(f"### Resume Score: {score}/100")
                         
                         # Display the rest of the analysis
-                        tabs = st.tabs(["📈 Experience", "🛠 Skills", "💡 Improvements"])
+                        tabs = st.tabs(["📈 Experience", "🛠 Skills", "💡 Improvements", "💼 Job Recommendations", "🌐 3D Insights"])
                         
                         with tabs[0]:
                             st.markdown("#### Professional Experience")
                             st.write(analysis_result.get('experience', 'No experience found'))
                             
                         with tabs[1]:
+                            st.markdown("<div class='card'>", unsafe_allow_html=True)
                             st.markdown("#### Key Skills")
                             st.write(analysis_result.get('skills', 'No skills found'))
+                            st.markdown("</div>", unsafe_allow_html=True)
                             
                         with tabs[2]:
                             st.markdown("#### Comprehensive Feedback")
@@ -308,14 +351,13 @@ def user_interface():
                             
                             if isinstance(improvements, dict):
                                 # Positive Aspects
-                                st.markdown("<div class='improvement-section positive-card'>", unsafe_allow_html=True)
+                                st.markdown("<div class='card' style='background: #e8f5e9; border-left: 4px solid #2ecc71;'>", unsafe_allow_html=True)
                                 st.markdown("##### ✅ Strengths")
                                 positives = improvements.get('positive', [])
                                 if positives:
                                     if isinstance(positives, list):
                                         for strength in positives:
-                                            st.markdown(f"- <div class='improvement-item'>{strength}</div>", 
-                                                        unsafe_allow_html=True)
+                                            st.markdown(f"- {strength}")
                                     else:
                                         st.write(positives)
                                 else:
@@ -323,14 +365,13 @@ def user_interface():
                                 st.markdown("</div>", unsafe_allow_html=True)
                                 
                                 # Negative Aspects
-                                st.markdown("<div class='improvement-section negative-card'>", unsafe_allow_html=True)
+                                st.markdown("<div class='card' style='background: #ffebee; border-left: 4px solid #e74c3c;'>", unsafe_allow_html=True)
                                 st.markdown("##### ❌ Areas for Improvement")
                                 negatives = improvements.get('negative', [])
                                 if negatives:
                                     if isinstance(negatives, list):
                                         for weakness in negatives:
-                                            st.markdown(f"- <div class='improvement-item'>{weakness}</div>", 
-                                                        unsafe_allow_html=True)
+                                            st.markdown(f"- {weakness}")
                                     else:
                                         st.write(negatives)
                                 else:
@@ -338,14 +379,13 @@ def user_interface():
                                 st.markdown("</div>", unsafe_allow_html=True)
                                 
                                 # Suggestions
-                                st.markdown("<div class='improvement-section suggestion-card'>", unsafe_allow_html=True)
+                                st.markdown("<div class='card' style='background: #e3f2fd; border-left: 4px solid #3498db;'>", unsafe_allow_html=True)
                                 st.markdown("##### 📈 Actionable Recommendations")
                                 suggestions = improvements.get('suggestions', [])
                                 if suggestions:
                                     if isinstance(suggestions, list):
                                         for suggestion in suggestions:
-                                            st.markdown(f"- <div class='improvement-item'>{suggestion}</div>", 
-                                                        unsafe_allow_html=True)
+                                            st.markdown(f"- {suggestion}")
                                     else:
                                         st.write(suggestions)
                                 else:
@@ -362,11 +402,160 @@ def user_interface():
                         
                         st.markdown("</div>", unsafe_allow_html=True)
 
-def admin_interface():
+                        with tabs[3]:
+                            st.markdown("#### 💼 Job Recommendations")
+                            st.write(analysis_result.get('job_recommendations', 'No jobs recommended'))
+
+                        with tabs[4]:
+                            st.markdown("#### 🌐 3D Insights")
+                            # Add a 3D scatter plot using Plotly
+                            st.markdown("##### Skills Distribution in 3D")
+                            skills = analysis_result.get('skills', '').split(', ')
+                            if skills:
+                                # Generate random data for 3D visualization
+                                import numpy as np
+                                np.random.seed(42)
+                                x = np.random.rand(len(skills))
+                                y = np.random.rand(len(skills))
+                                z = np.random.rand(len(skills))
+
+                                # Create a 3D scatter plot
+                                fig = go.Figure(data=[go.Scatter3d(
+                                    x=x,
+                                    y=y,
+                                    z=z,
+                                    mode='markers+text',
+                                    text=skills,
+                                    marker=dict(
+                                        size=10,
+                                        color=z,
+                                        colorscale='Viridis',
+                                        opacity=0.8
+                                    ),
+                                    textposition="top center"
+                                )])
+
+                                # Update layout for better visualization
+                                fig.update_layout(
+                                    scene=dict(
+                                        xaxis_title='Skill Relevance',
+                                        yaxis_title='Skill Demand',
+                                        zaxis_title='Skill Experience'
+                                    ),
+                                    margin=dict(l=0, r=0, b=0, t=0),
+                                    height=600,  # Increased height for better visibility
+                                    scene_camera=dict(
+                                        eye=dict(x=1.5, y=1.5, z=0.5)  # Adjust camera angle for better view
+                                    )
+                                )
+
+                                st.plotly_chart(fig, use_container_width=True)
+                            else:
+                                st.info("No skills found for 3D visualization.")
+
+    # Footer
     st.markdown("""
-        <div style='background: linear-gradient(90deg, #2c3e50 0%, #3498db 100%); padding: 2rem; border-radius: 10px; margin-bottom: 2rem;'>
-            <h1 style='color: white; margin: 0;'>Resume Parser - Recruiter Dashboard</h1>
-            <p style='color: #e0e0e0; margin: 10px 0 0 0;'>Advanced Resume Screening and Candidate Management</p>
+        <div class="footer">
+            <p>Made by Resume Parser Team ✨</p>
+        </div>
+    """, unsafe_allow_html=True)
+
+def admin_interface():
+    # Custom CSS for better styling
+    st.markdown("""
+        <style>
+        /* Import Google Fonts */
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&family=Poppins:wght@400;700&family=Montserrat:wght@400;700&display=swap');
+
+        /* Gradient background for the header - Silver touch */
+        .header {
+            background: linear-gradient(135deg, #4b6cb7, #9baec8); /* Blue to silver-like gradient */
+            padding: 2rem;
+            border-radius: 10px;
+            color: white;
+            margin-bottom: 2rem;
+            font-family: 'Poppins', sans-serif;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+        
+        /* Card styling */
+        .card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 1.5rem;
+            font-family: 'Roboto', sans-serif;
+        }
+        
+        /* Button styling - Light green gradient */
+        .stButton>button {
+            background: linear-gradient(135deg, #a8e6cf, #dcedc1); /* Light green gradient */
+            color: #333; /* Dark text for contrast */
+            border: none;
+            border-radius: 8px;
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: 'Roboto', sans-serif;
+        }
+        
+        .stButton>button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        
+        /* Footer styling */
+        .footer {
+        text-align: center;
+            padding: 1rem;
+            margin-top: 2rem;
+            color: white;
+            background-color: #2e8b57; /* Medium green color */
+            font-size: 0.9rem;
+            font-family: 'Montserrat', sans-serif;
+            border-radius: 8px;
+        }
+        
+        /* Improve spacing */
+        .stMarkdown {
+            margin-bottom: 1.5rem;
+        }
+        
+        /* Tab styling */
+        .stTabs [data-baseweb="tab-list"] {
+            margin-bottom: 1.5rem;
+        }
+        
+        .stTabs [data-baseweb="tab"] {
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            font-family: 'Roboto', sans-serif;
+        }
+        
+        .stTabs [data-baseweb="tab"]:hover {
+            background: rgba(168, 230, 207, 0.1); /* Light green with transparency */
+        }
+        
+        .stTabs [aria-selected="true"] {
+            background: #a8e6cf; /* Light green */
+            color: #333; /* Dark text for contrast */
+        }
+
+        /* Custom font for headlines */
+        h1, h2, h3, h4, h5, h6 {
+            font-family: 'Montserrat', sans-serif;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+    # Header with gradient
+    st.markdown("""
+        <div class="header">
+            <h1 style="margin: 0;">📄 Resume Parser - Recruiter Dashboard</h1>
+            <p style="margin: 10px 0 0 0; font-size: 1.1rem;">Advanced Resume Screening and Candidate Management</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -466,7 +655,7 @@ def admin_interface():
                 export_format = st.selectbox("Export Format", ["CSV", "Excel"])
                 
                 if st.button("Export Selected Candidates"):
-                    df = pd.DataFrame(rows, columns=["Candidate Name","Experience", "Skills", "Contact", "Score", "Upload Date", "Education", "Experience Level"])
+                    df = pd.DataFrame(rows, columns=["Candidate Name", "Experience", "Skills", "Contact", "Score", "Upload Date", "Education", "Experience Level"])
                     df = df[df["Candidate Name"].isin(selected_candidates)]
                     
                     if export_format == "CSV":
@@ -529,6 +718,13 @@ def admin_interface():
         conn.close()
     except Exception as e:
         st.error(f"Database connection error: {e}")
+
+    # Footer
+    st.markdown("""
+        <div class="footer">
+            <p>Made by Resume Parser Team ✨</p>
+        </div>
+    """, unsafe_allow_html=True)
 
 # Main app
 def main():

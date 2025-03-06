@@ -498,274 +498,283 @@ def user_interface():
     """, unsafe_allow_html=True)
 
 def admin_interface():
-    if 'db_name' not in st.session_state:
-        st.session_state['db_name'] = init_db(st.session_state['email'])
+    # Check if 'email' exists in session state
+    if 'email' not in st.session_state:
+        st.session_state['email'] = None
 
-    # Custom CSS for better styling
-    st.markdown("""
-        <style>
-        /* Import Google Fonts */
-        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&family=Poppins:wght@400;700&family=Montserrat:wght@400;700&display=swap');
+    # Initialize the database only if the recruiter is logged in
+    if st.session_state['email']:
+        if 'db_name' not in st.session_state:
+            st.session_state['db_name'] = init_db(st.session_state['email'])
 
-        /* Gradient background for the header - Silver touch */
-        .header {
-            background: linear-gradient(135deg, #4b6cb7, #9baec8); /* Blue to silver-like gradient */
-            padding: 2rem;
-            border-radius: 10px;
-            color: white;
-            margin-bottom: 2rem;
-            font-family: 'Poppins', sans-serif;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
-        }
-        
-        /* Card styling */
-        .card {
-            background: white;
-            padding: 1.5rem;
-            border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            margin-bottom: 1.5rem;
-            font-family: 'Roboto', sans-serif;
-        }
-        
-        /* Button styling - Light green gradient */
-        .stButton>button {
-            background: linear-gradient(135deg, #a8e6cf, #dcedc1); /* Light green gradient */
-            color: #333; /* Dark text for contrast */
-            border: none;
-            border-radius: 8px;
-            padding: 0.75rem 1.5rem;
-            font-size: 1rem;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            font-family: 'Roboto', sans-serif;
-        }
-        
-        .stButton>button:hover {
-            transform: scale(1.05);
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-        }
-        
-        /* Footer styling */
-        .footer {
-        text-align: center;
-            padding: 1rem;
-            margin-top: 2rem;
-            color: white;
-            background-color: #2e8b57; /* Medium green color */
-            font-size: 0.9rem;
-            font-family: 'Montserrat', sans-serif;
-            border-radius: 8px;
-        }
-        
-        /* Improve spacing */
-        .stMarkdown {
-            margin-bottom: 1.5rem;
-        }
-        
-        /* Tab styling */
-        .stTabs [data-baseweb="tab-list"] {
-            margin-bottom: 1.5rem;
-        }
-        
-        .stTabs [data-baseweb="tab"] {
-            padding: 0.75rem 1.5rem;
-            border-radius: 8px;
-            transition: all 0.3s ease;
-            font-family: 'Roboto', sans-serif;
-        }
-        
-        .stTabs [data-baseweb="tab"]:hover {
-            background: rgba(168, 230, 207, 0.1); /* Light green with transparency */
-        }
-        
-        .stTabs [aria-selected="true"] {
-            background: #a8e6cf; /* Light green */
-            color: #333; /* Dark text for contrast */
-        }
+        # Rest of the admin interface code...
+        # Custom CSS for better styling
+        st.markdown("""
+            <style>
+            /* Import Google Fonts */
+            @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&family=Poppins:wght@400;700&family=Montserrat:wght@400;700&display=swap');
 
-        /* Custom font for headlines */
-        h1, h2, h3, h4, h5, h6 {
-            font-family: 'Montserrat', sans-serif;
-        }
-        </style>
-    """, unsafe_allow_html=True)
-
-    # Header with gradient
-    st.markdown("""
-        <div class="header">
-            <h1 style="margin: 0;">📄 Resume Parser - Recruiter Dashboard</h1>
-            <p style="margin: 10px 0 0 0; font-size: 1.1rem;">Advanced Resume Screening and Candidate Management</p>
-        </div>
-    """, unsafe_allow_html=True)
-
-    # Admin Upload
-    with st.expander("📤 Bulk Upload Resumes (Admin Only)", expanded=True):
-        uploaded_files = st.file_uploader(
-            "Upload multiple resumes (PDF/DOCX)", 
-            type=["pdf", "docx"], 
-            accept_multiple_files=True,
-            key="admin_upload"
-        )
-        
-        if uploaded_files:
-            for uploaded_file in uploaded_files:
-                with st.spinner(f"Processing {uploaded_file.name}..."):
-                    try:
-                        # Check if resume already exists in database
-                        if check_resume_exists(uploaded_file.name, st.session_state['db_name']):
-                            st.warning(f"Resume {uploaded_file.name} already exists in database. Skipping.")
-                            continue
-                            
-                        analysis_result = process_resume(uploaded_file, identity='admin')
-                        
-                        if analysis_result:
-                            if save_to_db(uploaded_file.name, analysis_result, st.session_state['db_name']):
-                                st.success(f"Processed and stored: {uploaded_file.name}")
-                            else:
-                                st.error(f"Failed to store {uploaded_file.name}")
-                    except Exception as e:
-                        st.error(f"Error processing {uploaded_file.name}: {str(e)}")
-
-    # Search and Filter
-    with st.expander("🔍 Advanced Search"):
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            search_skills = st.multiselect("Filter by Skills", 
-                ["Artificial Intelligence", "AWS", "Azure", "C++", "C#", "C", "Cloud Computing", "CSS", "Data Analysis",
-                 "Data Science", "Digital Marketing", "Java", "Machine Learning", "Project Management", "Python", "React",
-                 "SQL", "UI/UX", "Web Development"])
-        
-        with col2:
-            experience_level = st.selectbox("Experience Level", 
-                ["Any", "Entry", "Mid-Level", "Senior", "Expert"])
-        
-        with col3:
-            min_score = st.slider("Minimum Score", 0, 100, 70)
-        
-        with col4:
-            upload_date_filter = st.date_input("Uploaded After")
-
-    # Database Query
-    try:
-        conn = mysql.connector.connect(
-            host="localhost",
-            user="root",
-            password="meghasram52@",
-            database=st.session_state['db_name']
-        )
-        c = conn.cursor()
-
-        query = '''
-            SELECT candidate_name, experience, skills, contact_details, score, upload_date, education, experience_level
-            FROM resumes 
-            WHERE score >= %s
-        '''
-        params = [min_score]
-
-        if search_skills:
-            skill_conditions = ' OR '.join(['skills LIKE %s' for _ in search_skills])
-            query += f' AND ({skill_conditions})'
-            params.extend([f'%{skill}%' for skill in search_skills])
-
-        if experience_level != "Any":
-            query += f' AND experience_level LIKE %s'
-            params.append(f'%{experience_level}%')
-
-        if upload_date_filter:
-            query += ' AND upload_date >= %s'
-            params.append(upload_date_filter.strftime('%Y-%m-%d'))
-
-        c.execute(query, params)
-        rows = c.fetchall()
-
-        # Display Results
-        if rows:
-            st.markdown("### 📁 Candidate Database")
+            /* Gradient background for the header - Silver touch */
+            .header {
+                background: linear-gradient(135deg, #4b6cb7, #9baec8); /* Blue to silver-like gradient */
+                padding: 2rem;
+                border-radius: 10px;
+                color: white;
+                margin-bottom: 2rem;
+                font-family: 'Poppins', sans-serif;
+                text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+            }
             
-            # Selection and Export
-            selected_candidates = st.multiselect(
-                "Select Candidates", 
-                [row[0] for row in rows]
+            /* Card styling */
+            .card {
+                background: white;
+                padding: 1.5rem;
+                border-radius: 10px;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+                margin-bottom: 1.5rem;
+                font-family: 'Roboto', sans-serif;
+            }
+            
+            /* Button styling - Light green gradient */
+            .stButton>button {
+                background: linear-gradient(135deg, #a8e6cf, #dcedc1); /* Light green gradient */
+                color: #333; /* Dark text for contrast */
+                border: none;
+                border-radius: 8px;
+                padding: 0.75rem 1.5rem;
+                font-size: 1rem;
+                cursor: pointer;
+                transition: all 0.3s ease;
+                font-family: 'Roboto', sans-serif;
+            }
+            
+            .stButton>button:hover {
+                transform: scale(1.05);
+                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            }
+            
+            /* Footer styling */
+            .footer {
+            text-align: center;
+                padding: 1rem;
+                margin-top: 2rem;
+                color: white;
+                background-color: #2e8b57; /* Medium green color */
+                font-size: 0.9rem;
+                font-family: 'Montserrat', sans-serif;
+                border-radius: 8px;
+            }
+            
+            /* Improve spacing */
+            .stMarkdown {
+                margin-bottom: 1.5rem;
+            }
+            
+            /* Tab styling */
+            .stTabs [data-baseweb="tab-list"] {
+                margin-bottom: 1.5rem;
+            }
+            
+            .stTabs [data-baseweb="tab"] {
+                padding: 0.75rem 1.5rem;
+                border-radius: 8px;
+                transition: all 0.3s ease;
+                font-family: 'Roboto', sans-serif;
+            }
+            
+            .stTabs [data-baseweb="tab"]:hover {
+                background: rgba(168, 230, 207, 0.1); /* Light green with transparency */
+            }
+            
+            .stTabs [aria-selected="true"] {
+                background: #a8e6cf; /* Light green */
+                color: #333; /* Dark text for contrast */
+            }
+
+            /* Custom font for headlines */
+            h1, h2, h3, h4, h5, h6 {
+                font-family: 'Montserrat', sans-serif;
+            }
+            </style>
+        """, unsafe_allow_html=True)
+
+        # Header with gradient
+        st.markdown("""
+            <div class="header">
+                <h1 style="margin: 0;">📄 Resume Parser - Recruiter Dashboard</h1>
+                <p style="margin: 10px 0 0 0; font-size: 1.1rem;">Advanced Resume Screening and Candidate Management</p>
+            </div>
+        """, unsafe_allow_html=True)
+
+        # Admin Upload
+        with st.expander("📤 Bulk Upload Resumes (Admin Only)", expanded=True):
+            uploaded_files = st.file_uploader(
+                "Upload multiple resumes (PDF/DOCX)", 
+                type=["pdf", "docx"], 
+                accept_multiple_files=True,
+                key="admin_upload"
             )
             
-            # Export
-            if selected_candidates:
-                st.markdown("### 🚀 Bulk Actions")
-                export_format = st.selectbox("Export Format", ["CSV", "Excel"])
-                
-                if st.button("Export Selected Candidates"):
-                    df = pd.DataFrame(rows, columns=["Candidate Name", "Experience", "Skills", "Contact", "Score", "Upload Date", "Education", "Experience Level"])
-                    df = df[df["Candidate Name"].isin(selected_candidates)]
-                    
-                    if export_format == "CSV":
-                        csv = df.to_csv(index=False).encode('utf-8')
-                        st.download_button(
-                            label="Download CSV",
-                            data=csv,
-                            file_name="candidates.csv",
-                            mime="text/csv"
-                        )
-                    elif export_format == "Excel":
-                        excel_file = df.to_excel(index=False)
-                        st.download_button(
-                            label="Download Excel",
-                            data=excel_file,
-                            file_name="candidates.xlsx",
-                            mime="application/vnd.ms-excel"
-                        )
+            if uploaded_files:
+                for uploaded_file in uploaded_files:
+                    with st.spinner(f"Processing {uploaded_file.name}..."):
+                        try:
+                            # Check if resume already exists in database
+                            if check_resume_exists(uploaded_file.name, st.session_state['db_name']):
+                                st.warning(f"Resume {uploaded_file.name} already exists in database. Skipping.")
+                                continue
+                                
+                            analysis_result = process_resume(uploaded_file, identity='admin')
+                            
+                            if analysis_result:
+                                if save_to_db(uploaded_file.name, analysis_result, st.session_state['db_name']):
+                                    st.success(f"Processed and stored: {uploaded_file.name}")
+                                else:
+                                    st.error(f"Failed to store {uploaded_file.name}")
+                        except Exception as e:
+                            st.error(f"Error processing {uploaded_file.name}: {str(e)}")
+
+        # Search and Filter
+        with st.expander("🔍 Advanced Search"):
+            col1, col2, col3, col4 = st.columns(4)
             
-            # Candidate List
-            for row in rows:
-                score = row[4]
-                # Ensure score is an integer for comparison
-                if isinstance(score, str):
-                    try:
-                        score = int(score)
-                    except ValueError:
-                        score = 0
-                        
-                with st.expander(f"📄 {row[0]} | Score: {score} | Uploaded: {row[5]}"):
-                    score_color = "#2ecc71" if score >= 75 else "#f1c40f" if score >= 50 else "#e74c3c"
-                    st.markdown(f"<span style='color: {score_color}'>Resume Score: {score}/100</span>", unsafe_allow_html=True)
-                    
-                    tabs = st.tabs(["Experience", "Skills", "Contact", "Details"])
-                    
-                    with tabs[0]:
-                        st.markdown("#### Professional Experience")
-                        st.write(row[1])
-                        
-                    with tabs[1]:
-                        st.markdown("#### Skills")
-                        st.write(row[2])
-                        
-                    with tabs[2]:
-                        st.markdown("#### Contact Details")
-                        st.write(row[3])
-                    
-                    with tabs[3]:
-                        st.markdown("#### Candidate Metrics")
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            st.metric("Resume Score", f"{score}/100")
-                        with col2:
-                            exp_level = row[7]
-                            st.metric("Experience Level", exp_level)
+            with col1:
+                search_skills = st.multiselect("Filter by Skills", 
+                    ["Artificial Intelligence", "AWS", "Azure", "C++", "C#", "C", "Cloud Computing", "CSS", "Data Analysis",
+                     "Data Science", "Digital Marketing", "Java", "Machine Learning", "Project Management", "Python", "React",
+                     "SQL", "UI/UX", "Web Development"])
+            
+            with col2:
+                experience_level = st.selectbox("Experience Level", 
+                    ["Any", "Entry", "Mid-Level", "Senior", "Expert"])
+            
+            with col3:
+                min_score = st.slider("Minimum Score", 0, 100, 70)
+            
+            with col4:
+                upload_date_filter = st.date_input("Uploaded After")
 
-        else:
-            st.info("No resumes found in the database")
+        # Database Query
+        try:
+            conn = mysql.connector.connect(
+                host="localhost",
+                user="root",
+                password="meghasram52@",
+                database=st.session_state['db_name']
+            )
+            c = conn.cursor()
 
-        conn.close()
-    except Exception as e:
-        st.error(f"Database connection error: {e}")
+            query = '''
+                SELECT candidate_name, experience, skills, contact_details, score, upload_date, education, experience_level
+                FROM resumes 
+                WHERE score >= %s
+            '''
+            params = [min_score]
 
-    # Footer
-    st.markdown("""
-        <div class="footer">
-            <p>Made by Megha & Bimalu ✨</p>
-        </div>
-    """, unsafe_allow_html=True)
+            if search_skills:
+                skill_conditions = ' OR '.join(['skills LIKE %s' for _ in search_skills])
+                query += f' AND ({skill_conditions})'
+                params.extend([f'%{skill}%' for skill in search_skills])
+
+            if experience_level != "Any":
+                query += f' AND experience_level LIKE %s'
+                params.append(f'%{experience_level}%')
+
+            if upload_date_filter:
+                query += ' AND upload_date >= %s'
+                params.append(upload_date_filter.strftime('%Y-%m-%d'))
+
+            c.execute(query, params)
+            rows = c.fetchall()
+
+            # Display Results
+            if rows:
+                st.markdown("### 📁 Candidate Database")
+                
+                # Selection and Export
+                selected_candidates = st.multiselect(
+                    "Select Candidates", 
+                    [row[0] for row in rows]
+                )
+                
+                # Export
+                if selected_candidates:
+                    st.markdown("### 🚀 Bulk Actions")
+                    export_format = st.selectbox("Export Format", ["CSV", "Excel"])
+                    
+                    if st.button("Export Selected Candidates"):
+                        df = pd.DataFrame(rows, columns=["Candidate Name", "Experience", "Skills", "Contact", "Score", "Upload Date", "Education", "Experience Level"])
+                        df = df[df["Candidate Name"].isin(selected_candidates)]
+                        
+                        if export_format == "CSV":
+                            csv = df.to_csv(index=False).encode('utf-8')
+                            st.download_button(
+                                label="Download CSV",
+                                data=csv,
+                                file_name="candidates.csv",
+                                mime="text/csv"
+                            )
+                        elif export_format == "Excel":
+                            excel_file = df.to_excel(index=False)
+                            st.download_button(
+                                label="Download Excel",
+                                data=excel_file,
+                                file_name="candidates.xlsx",
+                                mime="application/vnd.ms-excel"
+                            )
+                
+                # Candidate List
+                for row in rows:
+                    score = row[4]
+                    # Ensure score is an integer for comparison
+                    if isinstance(score, str):
+                        try:
+                            score = int(score)
+                        except ValueError:
+                            score = 0
+                            
+                    with st.expander(f"📄 {row[0]} | Score: {score} | Uploaded: {row[5]}"):
+                        score_color = "#2ecc71" if score >= 75 else "#f1c40f" if score >= 50 else "#e74c3c"
+                        st.markdown(f"<span style='color: {score_color}'>Resume Score: {score}/100</span>", unsafe_allow_html=True)
+                        
+                        tabs = st.tabs(["Experience", "Skills", "Contact", "Details"])
+                        
+                        with tabs[0]:
+                            st.markdown("#### Professional Experience")
+                            st.write(row[1])
+                            
+                        with tabs[1]:
+                            st.markdown("#### Skills")
+                            st.write(row[2])
+                            
+                        with tabs[2]:
+                            st.markdown("#### Contact Details")
+                            st.write(row[3])
+                        
+                        with tabs[3]:
+                            st.markdown("#### Candidate Metrics")
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                st.metric("Resume Score", f"{score}/100")
+                            with col2:
+                                exp_level = row[7]
+                                st.metric("Experience Level", exp_level)
+
+            else:
+                st.info("No resumes found in the database")
+
+            conn.close()
+        except Exception as e:
+            st.error(f"Database connection error: {e}")
+
+        # Footer
+        st.markdown("""
+            <div class="footer">
+                <p>Made by Megha & Bimalu ✨</p>
+            </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.warning("Please log in to access the admin interface.")
 
 def save_recruiter(email, password):
     try:

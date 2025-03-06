@@ -7,6 +7,7 @@ import pandas as pd
 from datetime import datetime
 import plotly.graph_objects as go
 
+
 # Set page config
 st.set_page_config(layout="wide", page_title="Resume Parser & Job Recommendation App", page_icon="📄")
 
@@ -594,7 +595,8 @@ def admin_interface():
         with col1:
             search_skills = st.multiselect("Filter by Skills", 
                 ["Artificial Intelligence", "AWS", "Azure", "C++", "C#", "C", "Cloud Computing", "CSS", "Data Analysis",
-                 "Data Science", "Digital Marketing", "Java", "Machine Learning", "Project Management", "Python", "React", "SQL" ])
+                 "Data Science", "Digital Marketing", "Java", "Machine Learning", "Project Management", "Python", "React",
+                 "SQL", "UI/UX", "Web Development"])
         
         with col2:
             experience_level = st.selectbox("Experience Level", 
@@ -726,10 +728,148 @@ def admin_interface():
         </div>
     """, unsafe_allow_html=True)
 
+def save_recruiter(email, password):
+    try:
+        conn = mysql.connector.connect(
+            host="localhost",
+            user="root",
+            password="meghasram52@",
+            database="recruiter_auth"
+        )
+        c = conn.cursor()
+        c.execute("INSERT INTO recruiters (email, password) VALUES (%s, %s)", (email, password))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        st.error(f"Error saving recruiter: {e}")
+        return False
+
+def check_recruiter_credentials(email, password):
+    try:
+        conn = mysql.connector.connect(
+            host="localhost",
+            user="root",
+            password="meghasram52@",
+            database="recruiter_auth"
+        )
+        c = conn.cursor()
+        c.execute("SELECT password FROM recruiters WHERE email = %s", (email,))
+        result = c.fetchone()
+        conn.close()
+        if result and result[0] == password:
+            return True
+        return False
+    except Exception as e:
+        st.error(f"Error checking credentials: {e}")
+        return False
+
+# Signup and Login UI
+def recruiter_signup():
+    st.markdown("""
+        <style>
+        .login-container {
+            max-width: 400px;
+            margin: auto;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            background-color: #f9f9f9;
+        }
+        .login-title {
+            text-align: center;
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        </style>
+        <div class="login-container">
+            <div class="login-title">Recruiter Signup</div>
+        </div>
+    """, unsafe_allow_html=True)
+
+    email = st.text_input("Email (Username)")
+    password = st.text_input("Password", type="password")
+    confirm_password = st.text_input("Confirm Password", type="password")
+
+    if st.button("Sign Up"):
+        if password == confirm_password:
+            if save_recruiter(email, password):
+                st.success("Signup successful! Please log in.")
+            else:
+                st.error("Signup failed. Please try again.")
+        else:
+            st.error("Passwords do not match.")
+
+def recruiter_login():
+    st.markdown("""
+        <style>
+        .login-container {
+            max-width: 400px;
+            margin: auto;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            background-color: #f9f9f9;
+        }
+        .login-title {
+            text-align: center;
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        </style>
+        <div class="login-container">
+            <div class="login-title">Recruiter Login</div>
+        </div>
+    """, unsafe_allow_html=True)
+
+    email = st.text_input("Email (Username)")
+    password = st.text_input("Password", type="password")
+
+    if st.button("LOGIN"):
+        if check_recruiter_credentials(email, password):
+            st.session_state['logged_in'] = True
+            st.session_state['email'] = email
+            st.success("Logged in successfully!")
+        else:
+            st.error("Invalid email or password")
+
+
+    
+def init_user_db():
+    try:
+        # Connect to MySQL server (without specifying a database)
+        conn = mysql.connector.connect(
+            host="localhost",
+            user="root",
+            password="meghasram52@"
+        )
+        c = conn.cursor()
+
+        # Create the database if it doesn't exist
+        c.execute("CREATE DATABASE IF NOT EXISTS recruiter_auth")
+        c.execute("USE recruiter_auth")
+
+        # Create the recruiters table if it doesn't exist
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS recruiters (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                email VARCHAR(255) UNIQUE NOT NULL,
+                password VARCHAR(255) NOT NULL
+            )
+        """)
+
+        conn.commit()
+        conn.close()
+        #st.success("")
+    except mysql.connector.Error as e:
+        st.error(f"Database initialization error: {e}")
+
+
+
 # Main app
 def main():
     init_db()
-    
+    init_user_db()
     st.sidebar.markdown("""
         <div style='padding: 1rem; background: white; border-radius: 8px;'>
             <h2 style='margin: 0 0 1rem 0;'>Navigation</h2>
@@ -741,7 +881,21 @@ def main():
     if page == "👤 User Interface":
         user_interface()
     else:
-        admin_interface()
+        if 'logged_in' not in st.session_state or not st.session_state['logged_in']:
+            st.sidebar.markdown("### Recruiter Authentication")
+            auth_option = st.sidebar.radio("Choose Option", ["Login", "Sign Up"])
+            if auth_option == "Login":
+                recruiter_login()
+            else:
+                recruiter_signup()
+        else:
+            st.sidebar.markdown(f"### Welcome, {st.session_state['email']}")
+            if st.sidebar.button("Logout"):
+                st.session_state['logged_in'] = False
+                st.session_state.pop('email', None)
+                st.success("Logged out successfully!")
+            admin_interface()
+    
 
 if __name__ == "__main__":
     main()

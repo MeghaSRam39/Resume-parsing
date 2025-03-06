@@ -20,6 +20,25 @@ def init_db():
             password="meghasram52@"
         )
         c = conn.cursor()
+        c.execute("CREATE DATABASE IF NOT EXISTS stored_resume")
+        c.execute("USE stored_resume")
+        
+        # Updated table with recruiter_id
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS resumes (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                recruiter_id INT NOT NULL,
+                file_name VARCHAR(255),
+                candidate_name VARCHAR(255),
+                experience TEXT,
+                experience_level VARCHAR(50),
+                skills TEXT,
+                education TEXT,
+                contact_details TEXT,
+                score INT,
+                upload_date DATETIME
+            )
+        """)
         conn.commit()
         conn.close()
     except Exception as e:
@@ -35,6 +54,9 @@ def save_to_db(name, analysis_result):
         )
         c = conn.cursor()
         
+        # Get the recruiter_id from the session (assuming recruiter_id is stored after login)
+        recruiter_id = st.session_state.get('recruiter_id', 1)  # Default to 1 if not set
+        
         # Convert the score to an integer if it's a string
         score = analysis_result.get('score', 0)
         if isinstance(score, str):
@@ -44,9 +66,10 @@ def save_to_db(name, analysis_result):
                 score = 0
         
         c.execute("""
-            INSERT INTO resumes (file_name, candidate_name, experience, experience_level, skills, education, contact_details, score, upload_date)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO resumes (recruiter_id, file_name, candidate_name, experience, experience_level, skills, education, contact_details, score, upload_date)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (
+            recruiter_id,
             name,
             analysis_result.get('candidate_name', ''),
             analysis_result.get('experience', ''),
@@ -200,13 +223,13 @@ def check_resume_exists(filename):
             database="stored_resume"
         )
         c = conn.cursor()
-        c.execute("SELECT COUNT(*) FROM resumes WHERE file_name = %s", (filename,))
+        recruiter_id = st.session_state.get('recruiter_id', 1)  # Filter by recruiter
+        c.execute("SELECT COUNT(*) FROM resumes WHERE file_name = %s AND recruiter_id = %s", (filename, recruiter_id))
         count = c.fetchone()[0]
         conn.close()
         return count > 0
     except Exception as e:
         st.error(f"Database check error: {e}")
-        # Return False in case of error to allow upload attempt
         return False
 
 def user_interface():
@@ -578,7 +601,6 @@ def admin_interface():
             for uploaded_file in uploaded_files:
                 with st.spinner(f"Processing {uploaded_file.name}..."):
                     try:
-                        # Check if resume already exists in database
                         if check_resume_exists(uploaded_file.name):
                             st.warning(f"Resume {uploaded_file.name} already exists in database. Skipping.")
                             continue
@@ -612,8 +634,8 @@ def admin_interface():
         
         with col4:
             upload_date_filter = st.date_input("Uploaded After")
-
-    # Database Query
+    
+    #Database Query
     try:
         conn = mysql.connector.connect(
             host="localhost",
@@ -623,12 +645,13 @@ def admin_interface():
         )
         c = conn.cursor()
 
+        recruiter_id = st.session_state.get('recruiter_id', 1)  # Filter by recruiter
         query = '''
             SELECT candidate_name, experience, skills, contact_details, score, upload_date, education, experience_level
             FROM resumes 
-            WHERE score >= %s
+            WHERE score >= %s AND recruiter_id = %s
         '''
-        params = [min_score]
+        params = [min_score, recruiter_id]
 
         if search_skills:
             skill_conditions = ' OR '.join(['skills LIKE %s' for _ in search_skills])
@@ -744,11 +767,13 @@ def save_recruiter(email, password):
         c = conn.cursor()
         c.execute("INSERT INTO recruiters (email, password) VALUES (%s, %s)", (email, password))
         conn.commit()
+        c.execute("SELECT id FROM recruiters WHERE email = %s", (email,))
+        recruiter_id = c.fetchone()[0]  # Fetch the auto-incremented ID
         conn.close()
-        return True
+        return recruiter_id
     except Exception as e:
         st.error(f"Error saving recruiter: {e}")
-        return False
+        return None
 
 def check_recruiter_credentials(email, password):
     try:
@@ -759,15 +784,15 @@ def check_recruiter_credentials(email, password):
             database="recruiter_auth"
         )
         c = conn.cursor()
-        c.execute("SELECT password FROM recruiters WHERE email = %s", (email,))
+        c.execute("SELECT id, password FROM recruiters WHERE email = %s", (email,))
         result = c.fetchone()
         conn.close()
-        if result and result[0] == password:
-            return True
-        return False
+        if result and result[1] == password:
+            return result[0]  # Return recruiter_id
+        return None
     except Exception as e:
         st.error(f"Error checking credentials: {e}")
-        return False
+        return None
 
 # Signup and Login UI
 def recruiter_signup():
@@ -836,7 +861,8 @@ def recruiter_signup():
 
     if st.button("Sign Up"):
         if password == confirm_password:
-            if save_recruiter(email, password):
+            recruiter_id = save_recruiter(email, password)
+            if recruiter_id:
                 st.success("Signup successful! Please log in.")
             else:
                 st.error("Signup failed. Please try again.")
@@ -908,9 +934,11 @@ def recruiter_login():
     password = st.text_input("Password", type="password")
 
     if st.button("Login"):
-        if check_recruiter_credentials(email, password):
+        recruiter_id = check_recruiter_credentials(email, password)
+        if recruiter_id:
             st.session_state['logged_in'] = True
             st.session_state['email'] = email
+            st.session_state['recruiter_id'] = recruiter_id  # Store recruiter_id in session
             st.success("Logged in successfully!")
         else:
             st.error("Invalid email or password")
@@ -975,9 +1003,9 @@ def main():
             if st.sidebar.button("Logout"):
                 st.session_state['logged_in'] = False
                 st.session_state.pop('email', None)
+                st.session_state.pop('recruiter_id', None)
                 st.success("Logged out successfully!")
             admin_interface()
-    
 
 if __name__ == "__main__":
     main()

@@ -12,23 +12,28 @@ import plotly.graph_objects as go
 st.set_page_config(layout="wide", page_title="Resume Parser & Job Recommendation App", page_icon="📄")
 
 # Database functions
-def init_db():
+def init_db(recruiter_email):
     try:
+        # Connect to MySQL server (without specifying a database)
         conn = mysql.connector.connect(
             host="localhost",
             user="root",
             password="meghasram52@"
         )
         c = conn.cursor()
-        c.execute("CREATE DATABASE IF NOT EXISTS stored_resume")
-        c.execute("USE stored_resume")
-        
-        # Updated table with recruiter_id
+
+        # Create a unique database name for the recruiter
+        db_name = f"recruiter_{recruiter_email.replace('@', '_').replace('.', '_')}"
+
+        # Create the database if it doesn't exist
+        c.execute(f"CREATE DATABASE IF NOT EXISTS {db_name}")
+        c.execute(f"USE {db_name}")
+
+        # Create the resumes table if it doesn't exist
         c.execute("""
             CREATE TABLE IF NOT EXISTS resumes (
                 id INT AUTO_INCREMENT PRIMARY KEY,
-                recruiter_id INT NOT NULL,
-                file_name VARCHAR(255),
+                file_name VARCHAR(255) NOT NULL,
                 candidate_name VARCHAR(255),
                 experience TEXT,
                 experience_level VARCHAR(50),
@@ -39,23 +44,27 @@ def init_db():
                 upload_date DATETIME
             )
         """)
+
         conn.commit()
         conn.close()
-    except Exception as e:
+        st.success(f"Database '{db_name}' initialized successfully!")
+        return db_name
+    except mysql.connector.Error as e:
         st.error(f"Database initialization error: {e}")
+        return None
+    except Exception as e:
+        st.error(f"Unexpected error: {e}")
+        return None
 
-def save_to_db(name, analysis_result):
+def save_to_db(name, analysis_result, db_name):
     try:
         conn = mysql.connector.connect(
             host="localhost",
             user="root",
             password="meghasram52@",
-            database="stored_resume"
+            database=db_name
         )
         c = conn.cursor()
-        
-        # Get the recruiter_id from the session (assuming recruiter_id is stored after login)
-        recruiter_id = st.session_state.get('recruiter_id', 1)  # Default to 1 if not set
         
         # Convert the score to an integer if it's a string
         score = analysis_result.get('score', 0)
@@ -66,10 +75,9 @@ def save_to_db(name, analysis_result):
                 score = 0
         
         c.execute("""
-            INSERT INTO resumes (recruiter_id, file_name, candidate_name, experience, experience_level, skills, education, contact_details, score, upload_date)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO resumes (file_name, candidate_name, experience, experience_level, skills, education, contact_details, score, upload_date)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (
-            recruiter_id,
             name,
             analysis_result.get('candidate_name', ''),
             analysis_result.get('experience', ''),
@@ -214,22 +222,22 @@ def process_resume(uploaded_file, identity):
         st.error(f"Processing error: {e}")
         return None
 
-def check_resume_exists(filename):
+def check_resume_exists(filename, db_name):
     try:
         conn = mysql.connector.connect(
             host="localhost",
             user="root",
             password="meghasram52@",
-            database="stored_resume"
+            database=db_name
         )
         c = conn.cursor()
-        recruiter_id = st.session_state.get('recruiter_id', 1)  # Filter by recruiter
-        c.execute("SELECT COUNT(*) FROM resumes WHERE file_name = %s AND recruiter_id = %s", (filename, recruiter_id))
+        c.execute("SELECT COUNT(*) FROM resumes WHERE file_name = %s", (filename,))
         count = c.fetchone()[0]
         conn.close()
         return count > 0
     except Exception as e:
         st.error(f"Database check error: {e}")
+        # Return False in case of error to allow upload attempt
         return False
 
 def user_interface():
@@ -490,6 +498,9 @@ def user_interface():
     """, unsafe_allow_html=True)
 
 def admin_interface():
+    if 'db_name' not in st.session_state:
+        st.session_state['db_name'] = init_db(st.session_state['email'])
+
     # Custom CSS for better styling
     st.markdown("""
         <style>
@@ -601,14 +612,15 @@ def admin_interface():
             for uploaded_file in uploaded_files:
                 with st.spinner(f"Processing {uploaded_file.name}..."):
                     try:
-                        if check_resume_exists(uploaded_file.name):
+                        # Check if resume already exists in database
+                        if check_resume_exists(uploaded_file.name, st.session_state['db_name']):
                             st.warning(f"Resume {uploaded_file.name} already exists in database. Skipping.")
                             continue
                             
                         analysis_result = process_resume(uploaded_file, identity='admin')
                         
                         if analysis_result:
-                            if save_to_db(uploaded_file.name, analysis_result):
+                            if save_to_db(uploaded_file.name, analysis_result, st.session_state['db_name']):
                                 st.success(f"Processed and stored: {uploaded_file.name}")
                             else:
                                 st.error(f"Failed to store {uploaded_file.name}")
@@ -634,24 +646,23 @@ def admin_interface():
         
         with col4:
             upload_date_filter = st.date_input("Uploaded After")
-    
-    #Database Query
+
+    # Database Query
     try:
         conn = mysql.connector.connect(
             host="localhost",
             user="root",
             password="meghasram52@",
-            database="stored_resume"
+            database=st.session_state['db_name']
         )
         c = conn.cursor()
 
-        recruiter_id = st.session_state.get('recruiter_id', 1)  # Filter by recruiter
         query = '''
             SELECT candidate_name, experience, skills, contact_details, score, upload_date, education, experience_level
             FROM resumes 
-            WHERE score >= %s AND recruiter_id = %s
+            WHERE score >= %s
         '''
-        params = [min_score, recruiter_id]
+        params = [min_score]
 
         if search_skills:
             skill_conditions = ' OR '.join(['skills LIKE %s' for _ in search_skills])
@@ -767,13 +778,11 @@ def save_recruiter(email, password):
         c = conn.cursor()
         c.execute("INSERT INTO recruiters (email, password) VALUES (%s, %s)", (email, password))
         conn.commit()
-        c.execute("SELECT id FROM recruiters WHERE email = %s", (email,))
-        recruiter_id = c.fetchone()[0]  # Fetch the auto-incremented ID
         conn.close()
-        return recruiter_id
+        return True
     except Exception as e:
         st.error(f"Error saving recruiter: {e}")
-        return None
+        return False
 
 def check_recruiter_credentials(email, password):
     try:
@@ -784,15 +793,15 @@ def check_recruiter_credentials(email, password):
             database="recruiter_auth"
         )
         c = conn.cursor()
-        c.execute("SELECT id, password FROM recruiters WHERE email = %s", (email,))
+        c.execute("SELECT password FROM recruiters WHERE email = %s", (email,))
         result = c.fetchone()
         conn.close()
-        if result and result[1] == password:
-            return result[0]  # Return recruiter_id
-        return None
+        if result and result[0] == password:
+            return True
+        return False
     except Exception as e:
         st.error(f"Error checking credentials: {e}")
-        return None
+        return False
 
 # Signup and Login UI
 def recruiter_signup():
@@ -861,8 +870,7 @@ def recruiter_signup():
 
     if st.button("Sign Up"):
         if password == confirm_password:
-            recruiter_id = save_recruiter(email, password)
-            if recruiter_id:
+            if save_recruiter(email, password):
                 st.success("Signup successful! Please log in.")
             else:
                 st.error("Signup failed. Please try again.")
@@ -934,12 +942,15 @@ def recruiter_login():
     password = st.text_input("Password", type="password")
 
     if st.button("Login"):
-        recruiter_id = check_recruiter_credentials(email, password)
-        if recruiter_id:
-            st.session_state['logged_in'] = True
-            st.session_state['email'] = email
-            st.session_state['recruiter_id'] = recruiter_id  # Store recruiter_id in session
-            st.success("Logged in successfully!")
+        if check_recruiter_credentials(email, password):
+            db_name = init_db(email)
+            if db_name:
+                st.session_state['logged_in'] = True
+                st.session_state['email'] = email
+                st.session_state['db_name'] = db_name
+                st.success("Logged in successfully!")
+            else:
+                st.error("Failed to initialize database. Please try again.")
         else:
             st.error("Invalid email or password")
 
@@ -978,7 +989,6 @@ def init_user_db():
 
 # Main app
 def main():
-    init_db()
     init_user_db()
     st.sidebar.markdown("""
         <div style='padding: 1rem; background: white; border-radius: 8px;'>
@@ -1003,9 +1013,10 @@ def main():
             if st.sidebar.button("Logout"):
                 st.session_state['logged_in'] = False
                 st.session_state.pop('email', None)
-                st.session_state.pop('recruiter_id', None)
+                st.session_state.pop('db_name', None)
                 st.success("Logged out successfully!")
             admin_interface()
+    
 
 if __name__ == "__main__":
     main()

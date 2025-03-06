@@ -138,9 +138,14 @@ def parse_analysis_result_admin(response_dict):
         }
         
         if isinstance(sections['contact_details'], dict):
-            sections['contact_details'] = '\n'.join(
-                [f"{k}: {v}" for k, v in sections['contact_details'].items()]
-            )
+            # Format contact details as specified
+            phone_number = sections['contact_details'].get('phone_number', '')
+            email_address = sections['contact_details'].get('email_address', '')
+            linkedin = sections['contact_details'].get('linkedin', '')
+            github = sections['contact_details'].get('github', '')
+            
+            sections['contact_details'] = f"phone number: {phone_number} \n email address: {email_address} \n linkedin: {linkedin} \n github: {github}"
+        
         return sections
     except Exception as e:
         st.error(f"Parsing error: {e}")
@@ -457,7 +462,7 @@ def user_interface():
     # Footer
     st.markdown("""
         <div class="footer">
-            <p>Made by Resume Parser Team ✨</p>
+            <p>Made by Megha & Bimalu ✨</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -724,7 +729,7 @@ def admin_interface():
     # Footer
     st.markdown("""
         <div class="footer">
-            <p>Made by Resume Parser Team ✨</p>
+            <p>Made by Megha & Bimalu ✨</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -771,15 +776,53 @@ def recruiter_signup():
         .login-container {
             max-width: 400px;
             margin: auto;
-            padding: 20px;
-            border: 1px solid #ddd;
-            border-radius: 10px;
-            background-color: #f9f9f9;
+            padding: 2rem;
+            border-radius: 15px;
+            background: linear-gradient(145deg, #ffffff, #f0f0f0);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            border: 1px solid #e0e0e0;
         }
         .login-title {
             text-align: center;
-            font-size: 24px;
-            margin-bottom: 20px;
+            font-size: 28px;
+            margin-bottom: 1.5rem;
+            color: white; /* White text for contrast */
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 700;
+            padding: 1rem;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #6a11cb, #2575fc); /* Gradient background */
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2); /* Subtle shadow */
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+        .stTextInput>div>div>input {
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            padding: 10px;
+            font-size: 16px;
+        }
+        /* Make labels bold */
+        .stTextInput>label, .stTextInput>div>label {
+            font-weight: 700 !important; /* Bold text */
+            font-size: 16px !important;
+            color: #333 !important; /* Dark text for contrast */
+        }
+        .stButton>button {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #2e8b57, #c0c0c0);
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+        .stButton>button:hover {
+            transform: scale(1.02);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
         }
         </style>
         <div class="login-container">
@@ -806,26 +849,65 @@ def recruiter_login():
         .login-container {
             max-width: 400px;
             margin: auto;
-            padding: 20px;
-            border: 1px solid #ddd;
-            border-radius: 10px;
-            background-color: #f9f9f9;
+            padding: 2rem;
+            border-radius: 15px;
+            background: linear-gradient(145deg, #ffffff, #f0f0f0);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            border: 1px solid #e0e0e0;
         }
         .login-title {
             text-align: center;
-            font-size: 24px;
-            margin-bottom: 20px;
+            font-size: 28px;
+            margin-bottom: 1.5rem;
+            color: white; /* White text for contrast */
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 700;
+            padding: 1rem;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #6a11cb, #2575fc); /* Gradient background */
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2); /* Subtle shadow */
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+        .stTextInput>div>div>input {
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            padding: 10px;
+            font-size: 16px;
+        }
+        /* Make labels bold */
+        .stTextInput>label, .stTextInput>div>label {
+            font-weight: 700 !important; /* Bold text */
+            font-size: 16px !important;
+            color: #333 !important; /* Dark text for contrast */
+        }
+        /* Custom login button color */
+        .stButton>button {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #2e8b57, #c0c0c0);
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+        .stButton>button:hover {
+            transform: scale(1.02);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
         }
         </style>
         <div class="login-container">
-            <div class="login-title">Recruiter Login</div>
+            <div class="login-title">🔒 Recruiter Login</div>
         </div>
     """, unsafe_allow_html=True)
 
     email = st.text_input("Email (Username)")
     password = st.text_input("Password", type="password")
 
-    if st.button("LOGIN"):
+    if st.button("Login"):
         if check_recruiter_credentials(email, password):
             st.session_state['logged_in'] = True
             st.session_state['email'] = email

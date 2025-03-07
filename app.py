@@ -688,14 +688,34 @@ def admin_interface():
             rows = c.fetchall()
 
             # Display Results
+            
             if rows:
                 st.markdown("### 📁 Candidate Database")
                 
-                # Selection and Export
-                selected_candidates = st.multiselect(
-                    "Select Candidates", 
-                    [row[0] for row in rows]
-                )
+                # Selection and Export (Modified section)
+                candidate_names = [row[0] for row in rows]
+
+                # Initialize a session state variable for "Select All"
+                if 'select_all' not in st.session_state:
+                    st.session_state['select_all'] = False
+
+                # Add Select All button and multiselect in a column layout
+                col_select, col_button = st.columns([3, 1])
+                with col_button:
+                    if st.button("Select All"):
+                        st.session_state['select_all'] = True
+                    if st.button("Deselect All"):  # Optional: Add a deselect option
+                        st.session_state['select_all'] = False
+
+                with col_select:
+                    # Set default value based on select_all state
+                    default_candidates = candidate_names if st.session_state['select_all'] else []
+                    selected_candidates = st.multiselect(
+                        "Select Candidates",
+                        candidate_names,
+                        default=default_candidates,
+                        key="candidate_multiselect"
+                    )
                 
                 # Export
                 if selected_candidates:

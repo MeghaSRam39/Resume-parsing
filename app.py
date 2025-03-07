@@ -47,7 +47,7 @@ def init_db(recruiter_email):
 
         conn.commit()
         conn.close()
-        #st.success("")
+        #st.success(f"Database '{db_name}' initialized successfully!")
         return db_name
     except mysql.connector.Error as e:
         st.error(f"Database initialization error: {e}")
@@ -777,36 +777,6 @@ def admin_interface():
     else:
         st.warning("Please log in to access the admin interface.")
 
-
-def init_user_db():
-    try:
-        # Connect to MySQL server (without specifying a database)
-        conn = mysql.connector.connect(
-            host="localhost",
-            user="root",
-            password="meghasram52@"
-        )
-        c = conn.cursor()
-
-        # Create the database if it doesn't exist
-        c.execute("CREATE DATABASE IF NOT EXISTS recruiter_auth")
-        c.execute("USE recruiter_auth")
-
-        # Create the recruiters table if it doesn't exist
-        c.execute("""
-            CREATE TABLE IF NOT EXISTS recruiters (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                email VARCHAR(255) UNIQUE NOT NULL,
-                password VARCHAR(255) NOT NULL
-            )
-        """)
-
-        conn.commit()
-        conn.close()
-        #st.success("")
-    except mysql.connector.Error as e:
-        st.error(f"Database initialization error: {e}")
-
 def save_recruiter(email, password):
     try:
         conn = mysql.connector.connect(
@@ -994,7 +964,39 @@ def recruiter_login():
         else:
             st.error("Invalid email or password")
 
+
     
+def init_user_db():
+    try:
+        # Connect to MySQL server (without specifying a database)
+        conn = mysql.connector.connect(
+            host="localhost",
+            user="root",
+            password="meghasram52@"
+        )
+        c = conn.cursor()
+
+        # Create the database if it doesn't exist
+        c.execute("CREATE DATABASE IF NOT EXISTS recruiter_auth")
+        c.execute("USE recruiter_auth")
+
+        # Create the recruiters table if it doesn't exist
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS recruiters (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                email VARCHAR(255) UNIQUE NOT NULL,
+                password VARCHAR(255) NOT NULL
+            )
+        """)
+
+        conn.commit()
+        conn.close()
+        #st.success("")
+    except mysql.connector.Error as e:
+        st.error(f"Database initialization error: {e}")
+
+
+
 # Main app
 def main():
     init_user_db()

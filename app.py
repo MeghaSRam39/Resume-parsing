@@ -18,7 +18,7 @@ def init_db(recruiter_email):
         conn = mysql.connector.connect(
             host="localhost",
             user="root",
-            password="meghasram52@"
+            password=os.getenv("password")
         )
         c = conn.cursor()
 
@@ -61,7 +61,7 @@ def save_to_db(name, analysis_result, db_name):
         conn = mysql.connector.connect(
             host="localhost",
             user="root",
-            password="meghasram52@",
+            password=os.getenv("password"),
             database=db_name
         )
         c = conn.cursor()
@@ -992,7 +992,7 @@ def init_user_db():
         conn = mysql.connector.connect(
             host="localhost",
             user="root",
-            password="meghasram52@"
+            password=os.getenv("password")
         )
         c = conn.cursor()
 

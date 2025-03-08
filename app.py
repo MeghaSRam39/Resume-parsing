@@ -227,7 +227,7 @@ def check_resume_exists(filename, db_name):
         conn = mysql.connector.connect(
             host="localhost",
             user="root",
-            password="meghasram52@",
+            password=os.getenv("password"),
             database=db_name
         )
         c = conn.cursor()
@@ -659,7 +659,7 @@ def admin_interface():
             conn = mysql.connector.connect(
                 host="localhost",
                 user="root",
-                password="meghasram52@",
+                password=os.getenv("password"),
                 database=st.session_state['db_name']
             )
             c = conn.cursor()
@@ -802,7 +802,7 @@ def save_recruiter(email, password):
         conn = mysql.connector.connect(
             host="localhost",
             user="root",
-            password="meghasram52@",
+            password=os.getenv("password"),
             database="recruiter_auth"
         )
         c = conn.cursor()
@@ -819,7 +819,7 @@ def check_recruiter_credentials(email, password):
         conn = mysql.connector.connect(
             host="localhost",
             user="root",
-            password="meghasram52@",
+            password=os.getenv("password"),
             database="recruiter_auth"
         )
         c = conn.cursor()

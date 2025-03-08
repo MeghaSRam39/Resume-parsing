@@ -10,3 +10,4 @@ mysql-connector-python
 groq
 PyPDF2
 python-dotenv
+docx

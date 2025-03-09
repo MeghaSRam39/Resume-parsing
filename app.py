@@ -641,8 +641,8 @@ def admin_interface():
             with col1:
                 search_skills = st.multiselect("Filter by Skills", 
                     ["Artificial Intelligence", "AWS", "Azure", "C++", "C#", "C", "Cloud Computing", "CSS", "Data Analysis",
-                     "Data Science", "Digital Marketing", "Java", "Machine Learning", "Project Management", "Python", "React",
-                     "SQL", "UI/UX", "Web Development"])
+                     "Data Science", "Digital Marketing", "Django" "Git" "JavaScript", "Machine Learning", "Project Management", "Python", 
+                     "PyTorch", "React", "R", "SQL", "UI/UX", "Web Development"])
             
             with col2:
                 experience_level = st.selectbox("Experience Level", 

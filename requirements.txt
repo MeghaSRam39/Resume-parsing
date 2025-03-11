@@ -9,4 +9,5 @@ Pillow
 mysql-connector-python
 groq
 PyPDF2
+docx
 python-dotenv

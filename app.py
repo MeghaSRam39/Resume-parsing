@@ -206,7 +206,7 @@ def process_resume(uploaded_file, identity):
             prompt = f"""Analyze the following resume/CV and provide results in JSON format with these fields:
     - candidate_name: The name of the candidate
     - experience: A string summarizing professional experience
-    - skills: A string listing key skills
+    - skills: A comma-separated list of key skills (with spaces after commas)
     - contact_details: A string with contact information
     - score: A number from 0-100 rating the resume's overall quality
     - experince level: It should be ['Entry', 'Mid-Level', 'Senior', 'Expert'], based on years of experience (or if mentioned in resume) [3+ years for mid, 5+ for senior and 10+ expert]
@@ -671,10 +671,14 @@ def admin_interface():
             '''
             params = [min_score]
 
+            # In the admin_interface function, modify the skill filtering part of the query:
+
             if search_skills:
-                skill_conditions = ' OR '.join(['skills LIKE %s' for _ in search_skills])
+    # Use regex to match exact skills (whole words)
+                skill_conditions = ' OR '.join(['REGEXP_LIKE(skills, %s)' for _ in search_skills])
                 query += f' AND ({skill_conditions})'
-                params.extend([f'%{skill}%' for skill in search_skills])
+    # The regex pattern will match the exact skill word, optionally followed by a comma or space
+                params.extend([f'(^|[, ]){skill}([, ]|$)' for skill in search_skills])
 
             if experience_level != "Any":
                 query += f' AND experience_level LIKE %s'
